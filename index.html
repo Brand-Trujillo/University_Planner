@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F766E">
+<title>University Planner</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Zen+Dots&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'class', theme: { extend: {
+  fontFamily: { sans: ['Inter','system-ui','sans-serif'], title: ['Zen Dots','Inter','sans-serif'] },
+  colors: { slate850: '#1E293B', ink: '#0B1220' } } } };
+</script>
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+  .fade-in { animation: fi .25s ease both; }
+  @keyframes fi { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none; } }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-thumb { background:#33415588; border-radius: 9px; }
+  .dropzone.over { border-color:#10B981; background:#10B98122; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-ink dark:text-slate-100 font-sans min-h-screen transition-colors">
+
+<div id="toasts" class="fixed top-3 left-0 right-0 z-[60] flex flex-col items-center gap-2 px-3 pointer-events-none"></div>
+
+<header class="sticky top-0 z-40 backdrop-blur bg-white/80 dark:bg-ink/80 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-white shadow-lg shadow-emerald-500/30">🎓</div>
+      <div>
+        <h1 class="font-title text-base leading-tight bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text         text-transparent">University Planner</h1>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">By Megabyte</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btnBell" class="relative w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Notificaciones">🔔<span id="bellDot" class="hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400"></span></button>
+      <button id="btnTheme" class="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Tema">🌓</button>
+    </div>
+  </div>
+</header>
+
+<main id="view" class="max-w-3xl mx-auto px-4 pt-4 pb-28"></main>
+
+<!-- Bottom nav -->
+<nav class="fixed bottom-0 inset-x-0 z-40 bg-white/90 dark:bg-slate850/95 backdrop-blur border-t border-slate-200 dark:border-slate-700 safe-b">
+  <div class="max-w-3xl mx-auto grid grid-cols-5 text-[11px] font-medium" id="nav"></div>
+</nav>
+
+<!-- FAB -->
+<button id="fab" class="fixed z-40 right-4 bottom-20 w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white text-3xl shadow-xl shadow-emerald-600/40 hover:scale-105 active:scale-95 transition" aria-label="Nuevo pendiente">+</button>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm items-end sm:items-center justify-center">
+  <div id="modalBox" class="w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-white dark:bg-slate850 rounded-t-3xl sm:rounded-3xl p-5 fade-in"></div>
+</div>
+
+<script>
+/* ================== Utilidades ================== */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const daysUntil = s => Math.round((parseISO(s) - today0()) / 864e5);
+const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']; // índice 0 = lunes
+const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const dayIdx = d => (d.getDay() + 6) % 7;
+const fmtDate = s => { const d = parseISO(s); return `${DAYS[dayIdx(d)].slice(0,3)} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`; };
+
+const TYPES = {
+  parcial: { label: 'Parcial', icon: '📝', cls: 'bg-rose-500/15 text-rose-500 dark:text-rose-300', dot: 'bg-rose-500' },
+  quiz:    { label: 'Quiz',    icon: '⚡', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300', dot: 'bg-amber-400' },
+  trabajo: { label: 'Trabajo', icon: '📦', cls: 'bg-sky-500/15 text-sky-600 dark:text-sky-300', dot: 'bg-sky-400' },
+  tarea:   { label: 'Tarea',   icon: '✅', cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300', dot: 'bg-emerald-400' },
+};
+const REMINDERS = [7, 3, 1, 0];
+const REM_LABEL = { 7: 'en 1 semana', 3: 'en 3 días', 1: 'mañana', 0: 'hoy' };
+
+/* ================== Estado / localStorage ================== */
+const KEY = 'studytask.v1';
+let state = (() => {
+  try { return Object.assign({ tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }, JSON.parse(localStorage.getItem(KEY)) || {}); }
+  catch { return { tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }; }
+})();
+const save = () => localStorage.setItem(KEY, JSON.stringify(state));
+state.chat ??= []; state.rooms ??= []; state.deviceId ||= uid();
+state.pomo ??= { mode: '25', phase: 'focus', running: false, endsAt: 0, left: 25 * 60, count: 0, day: iso(new Date()) };
+
+let tab = 'home';
+let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: iso(new Date()) };
+let filter = 'all';
+
+/* ================== UI base ================== */
+function toast(msg, icon = '✨') {
+  const t = document.createElement('div');
+  t.className = 'pointer-events-auto max-w-sm w-full flex gap-2 items-start bg-slate-900 text-white border border-emerald-500/40 rounded-2xl px-4 py-3 shadow-xl fade-in text-sm';
+  t.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = 0; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 4500);
+}
+function applyTheme() { document.documentElement.classList.toggle('dark', state.theme === 'dark'); }
+function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); $('#modal').classList.add('flex'); }
+function closeModal() { $('#modal').classList.add('hidden'); $('#modal').classList.remove('flex'); }
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+
+const NAV = [['home','🏠','Inicio'],['week','🗓️','Horario'],['cal','📅','Calendario'],['tasks','📋','Pendientes'],['more','✨','Más']];
+function renderNav() {
+  $('#nav').innerHTML = NAV.map(([k, i, l]) => `
+    <button data-tab="${k}" class="py-2.5 flex flex-col items-center gap-0.5 transition ${tab === k ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}">
+      <span class="text-xl ${tab === k ? 'scale-110' : ''} transition">${i}</span>${l}</button>`).join('');
+  $('#fab').classList.toggle('hidden', tab === 'more');
+}
+$('#nav').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; sub = null; render(); window.scrollTo(0, 0); } });
+$('#btnTheme').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; save(); applyTheme(); };
+$('#fab').onclick = () => taskForm();
+$('#btnBell').onclick = () => notifCenter();
+
+const card = 'bg-white dark:bg-slate850 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/50';
+const inputCls = 'w-full rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
+const btnP = 'rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-emerald-600/25 hover:brightness-110 active:scale-95 transition';
+const btnG = 'rounded-xl bg-slate-200 dark:bg-slate-700 font-medium px-4 py-2.5 text-sm hover:brightness-95 active:scale-95 transition';
+
+function render() {
+  renderNav();
+  const v = $('#view');
+  v.innerHTML = `<div class="fade-in">${({ home: viewHome, week: viewWeek, cal: viewCal, tasks: viewTasks, more: viewMore }[tab])()}</div>`;
+  ({ home: bindHome, week: bindWeek, cal: bindCal, tasks: bindTasks, more: bindMore }[tab])();
+  $('#bellDot').classList.toggle('hidden', state.notifs.length <= state.seenNotifs);
+}
+
+/* ================== Tarjeta de pendiente ================== */
+const pending = () => state.tasks.filter(t => !t.done).sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+function whenLabel(d) { return d < 0 ? `Venció hace ${-d} d` : d === 0 ? '¡HOY!' : d === 1 ? 'Mañana' : `En ${d} días`; }
+function taskCard(t) {
+  const ty = TYPES[t.type] || TYPES.tarea, d = daysUntil(t.date);
+  const urgent = !t.done && d <= 1;
+  return `<div class="${card} p-3.5 flex gap-3 items-start ${t.done ? 'opacity-50' : ''} ${urgent && d >= 0 ? 'ring-1 ring-emerald-500/60' : ''}">
+    <button data-act="toggle" data-id="${t.id}" class="mt-0.5 w-6 h-6 rounded-lg border-2 ${t.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-400'} grid place-items-center text-xs shrink-0">${t.done ? '✓' : ''}</button>
+    <div class="flex-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-1.5 mb-1">
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${ty.cls}">${ty.icon} ${ty.label}</span>
+        ${t.subject ? `<span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${esc(t.subject)}</span>` : ''}
+      </div>
+      <p class="font-semibold text-sm ${t.done ? 'line-through' : ''}">${esc(t.title)}</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${fmtDate(t.date)}${t.time ? ' · ' + esc(t.time) : ''}${t.teacher ? ' · 👤 ' + esc(t.teacher) : ''}</p>
+      ${t.notes ? `<p class="text-xs mt-1 text-slate-500 dark:text-slate-400">${esc(t.notes)}</p>` : ''}
+    </div>
+    <div class="flex flex-col items-end gap-1 shrink-0">
+      ${t.done ? '' : `<span class="text-[11px] font-bold ${d < 0 ? 'text-rose-500' : d <= 1 ? 'text-emerald-500' : 'text-slate-400'}">${whenLabel(d)}</span>`}
+      <div class="flex gap-1">
+        <button data-act="edit" data-id="${t.id}" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm" aria-label="Editar">✏️</button>
+        <button data-act="del" data-id="${t.id}" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm" aria-label="Eliminar">🗑️</button>
+      </div>
+    </div></div>`;
+}
+function bindTaskActions(root) {
+  root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const t = state.tasks.find(x => x.id === b.dataset.id); if (!t) return;
+    if (b.dataset.act === 'toggle') { t.done = !t.done; save(); render(); }
+    if (b.dataset.act === 'edit') taskForm(t);
+    if (b.dataset.act === 'del' && confirm('¿Eliminar este pendiente?')) { state.tasks = state.tasks.filter(x => x !== t); save(); render(); }
+  });
+}
+
+/* ================== Dashboard ================== */
+function viewHome() {
+  const list = pending().filter(t => daysUntil(t.date) >= 0);
+  const next = list[0], rest = list.slice(1, 6);
+  const todayCount = list.filter(t => daysUntil(t.date) === 0).length;
+  const h = new Date().getHours();
+  const greet = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const lastAdd = localStorage.getItem('studytask.lastAdd');
+  const addedToday = lastAdd === iso(new Date());
+  const banner = !addedToday
+    ? `<div class="rounded-2xl p-4 bg-gradient-to-r from-teal-700 to-emerald-600 text-white flex gap-3 items-center shadow-lg">
+         <span class="text-2xl">💡</span>
+         <div class="flex-1 text-sm"><b>¿Qué pasó hoy en la U?</b><br><span class="opacity-90">Registra tus pendientes del día para no olvidar nada.</span></div>
+         <button id="bannerAdd" class="bg-white/20 hover:bg-white/30 rounded-xl px-3 py-2 text-xs font-semibold">Agregar</button></div>`
+    : `<div class="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/30 text-sm text-emerald-600 dark:text-emerald-300">🔥 ¡Genial! Ya registraste pendientes hoy. Sigue así.</div>`;
+
+  const nd = next ? daysUntil(next.date) : null, nty = next ? (TYPES[next.type] || TYPES.tarea) : null;
+  const hero = next ? `
+    <div class="rounded-3xl p-5 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 text-white shadow-xl shadow-emerald-700/30">
+      <p class="text-xs uppercase tracking-widest opacity-80">Lo próximo</p>
+      <div class="flex items-end justify-between mt-2 gap-3">
+        <div class="min-w-0"><span class="text-xs bg-white/20 rounded-full px-2 py-0.5">${nty.icon} ${nty.label}</span>
+          <h2 class="text-xl font-bold mt-2 leading-tight">${esc(next.title)}</h2>
+          <p class="text-sm opacity-90 mt-1">${esc(next.subject || '')} ${next.teacher ? '· 👤 ' + esc(next.teacher) : ''}</p>
+          <p class="text-xs opacity-80 mt-1">${fmtDate(next.date)}${next.time ? ' · ' + esc(next.time) : ''}</p></div>
+        <div class="text-center shrink-0"><div class="font-title text-5xl leading-none">${nd}</div><div class="text-xs opacity-90 mt-1">${nd === 1 ? 'día' : 'días'}</div></div>
+      </div></div>`
+    : `<div class="${card} p-6 text-center"><div class="text-4xl">🎉</div><p class="font-semibold mt-2">Sin pendientes próximos</p><p class="text-sm text-slate-500">Agrega uno con el botón + o usa el asistente IA.</p></div>`;
+
+  const todayClasses = state.classes.filter(c => c.day === dayIdx(new Date())).sort((a, b) => a.start.localeCompare(b.start));
+  return `<div class="space-y-4">
+    <div><h2 class="text-2xl font-bold">${greet}${state.name ? ', ' + esc(state.name) : ''} 👋 <button id="editName" class="text-sm align-middle opacity-60 hover:opacity-100" aria-label="Cambiar nombre">✏️</button></h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">${DAYS[dayIdx(new Date())]}, ${new Date().getDate()} de ${MONTHS[new Date().getMonth()]} · ${todayCount ? `<b class="text-emerald-500">${todayCount} para hoy</b>` : 'nada para hoy'}</p></div>
+    ${banner}${hero}
+    <div class="grid grid-cols-3 gap-3 text-center">
+      ${['parcial','quiz','trabajo'].map(k => { const n = list.filter(t => t.type === k && daysUntil(t.date) <= 14).length;
+        return `<div class="${card} p-3"><div class="text-xl">${TYPES[k].icon}</div><div class="text-xl font-bold">${n}</div><div class="text-[11px] text-slate-500">${TYPES[k].label}${k === 'quiz' ? 'zes' : 'es' === 'x' ? '' : k === 'parcial' ? 'es' : 's'} · 14d</div></div>`; }).join('')}
+    </div>
+    <section><h3 class="font-semibold mb-2">Clases de hoy</h3>
+      ${todayClasses.length ? `<div class="space-y-2">${todayClasses.map(classRow).join('')}</div>` : `<p class="text-sm text-slate-500 ${card} p-4">No tienes clases registradas hoy.</p>`}</section>
+    ${rest.length ? `<section><h3 class="font-semibold mb-2">Después de esto</h3><div class="space-y-2" id="homeList">${rest.map(taskCard).join('')}</div></section>` : ''}
+  </div>`;
+}
+function nameForm() {
+  openModal(`<h3 class="font-bold text-lg mb-1">👋 ¡Hola! ¿Cómo te llamas?</h3>
+    <p class="text-sm text-slate-500 mb-3">Personalizaremos tu experiencia en University Planner.</p>
+    <form id="nf" class="space-y-3"><input name="name" maxlength="30" autofocus placeholder="Tu nombre" value="${esc(state.name)}" class="${inputCls}">
+    <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Ahora no</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
+  $('#nf').onsubmit = e => { e.preventDefault(); state.name = new FormData(e.target).get('name').trim(); save(); closeModal(); render(); };
+}
+function bindHome() { const en = $('#editName'); if (en) en.onclick = nameForm; const b = $('#bannerAdd'); if (b) b.onclick = () => taskForm(); bindTaskActions($('#view')); }
+function classRow(c) {
+  return `<div class="${card} p-3 flex items-center gap-3">
+    <div class="text-xs font-mono text-emerald-500 w-24 shrink-0">${esc(c.start)}–${esc(c.end)}</div>
+    <div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">${esc(c.subject)}</p>
+    <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${c.teacher ? '👤 ' + esc(c.teacher) : ''} ${c.room ? '· 🚪 ' + esc(c.room) : ''}</p></div></div>`;
+}
+
+/* ================== Horario semanal ================== */
+let weekMode = 'list';
+function viewWeek() {
+  const subjects = directory();
+  const body = weekMode === 'list'
+    ? DAYS.map((n, i) => { const cs = state.classes.filter(c => c.day === i).sort((a, b) => a.start.localeCompare(b.start));
+        return `<div><h4 class="text-sm font-semibold mb-1.5 ${i === dayIdx(new Date()) ? 'text-emerald-500' : ''}">${n}${i === dayIdx(new Date()) ? ' · hoy' : ''}</h4>
+          ${cs.length ? `<div class="space-y-2">${cs.map(c => `<div class="relative">${classRow(c)}<div class="absolute top-2 right-2 flex gap-1"><button data-cedit="${c.id}" class="text-xs">✏️</button><button data-cdel="${c.id}" class="text-xs">🗑️</button></div></div>`).join('')}</div>` : `<p class="text-xs text-slate-400 pl-1">Libre</p>`}</div>`; }).join('')
+    : weekGrid();
+  return `<div class="space-y-4">
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Horario semanal</h2>
+      <div class="flex gap-2"><button id="wMode" class="${btnG}">${weekMode === 'list' ? '▦ Cuadrícula' : '☰ Lista'}</button><button id="addClass" class="${btnP}">+ Clase</button></div></div>
+    <div class="space-y-3">${body}</div>
+    <section class="pt-2"><h3 class="font-semibold mb-2">👨‍🏫 Directorio de materias y profesores</h3>
+      ${subjects.length ? `<div class="grid gap-2">${subjects.map(s => `<div class="${card} p-3"><p class="font-semibold text-sm">${esc(s.subject)}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">${s.teachers.length ? '👤 ' + s.teachers.map(esc).join(', ') : 'Sin profesor'}${s.rooms.length ? ' · 🚪 ' + s.rooms.map(esc).join(', ') : ''}</p></div>`).join('')}</div>`
+        : `<p class="text-sm text-slate-500 ${card} p-4">Aún no hay materias. Agrega clases o importa un pantallazo desde la pestaña IA.</p>`}</section></div>`;
+}
+function weekGrid() {
+  if (!state.classes.length) return `<p class="text-sm text-slate-500 ${card} p-4">Sin clases todavía.</p>`;
+  const startH = Math.min(...state.classes.map(c => parseInt(c.start))), endH = Math.max(...state.classes.map(c => Math.ceil(parseInt(c.end) + (parseInt(c.end.slice(3)) > 0 ? 1 : 0))));
+  const H = 48, mins = s => parseInt(s) * 60 + parseInt(s.slice(3));
+  const hours = []; for (let h = startH; h < endH; h++) hours.push(h);
+  return `<div class="${card} overflow-x-auto"><div class="min-w-[640px] grid" style="grid-template-columns:40px repeat(7,1fr)">
+    <div></div>${DAYS.map(d => `<div class="text-center text-[11px] font-semibold py-2">${d.slice(0, 3)}</div>`).join('')}
+    <div>${hours.map(h => `<div style="height:${H}px" class="text-[10px] text-slate-400 text-right pr-1">${pad(h)}:00</div>`).join('')}</div>
+    ${DAYS.map((_, di) => `<div class="relative border-l border-slate-200 dark:border-slate-700" style="height:${hours.length * H}px">
+      ${hours.map((_, i) => `<div class="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style="top:${i * H}px"></div>`).join('')}
+      ${state.classes.filter(c => c.day === di).map(c => `<div class="absolute inset-x-0.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-1 overflow-hidden text-[10px] leading-tight" style="top:${(mins(c.start) - startH * 60) / 60 * H}px;height:${Math.max(24, (mins(c.end) - mins(c.start)) / 60 * H - 2)}px"><b>${esc(c.subject)}</b><br>${esc(c.room || '')}</div>`).join('')}
+    </div>`).join('')}</div></div>`;
+}
+function directory() {
+  const m = {};
+  const add = (s, t, r) => { if (!s) return; const k = s.toLowerCase(); m[k] ??= { subject: s, teachers: new Set(), rooms: new Set() }; if (t) m[k].teachers.add(t); if (r) m[k].rooms.add(r); };
+  state.classes.forEach(c => add(c.subject, c.teacher, c.room));
+  state.tasks.forEach(t => add(t.subject, t.teacher));
+  return Object.values(m).map(x => ({ subject: x.subject, teachers: [...x.teachers], rooms: [...x.rooms] })).sort((a, b) => a.subject.localeCompare(b.subject));
+}
+function bindWeek() {
+  $('#wMode').onclick = () => { weekMode = weekMode === 'list' ? 'grid' : 'list'; render(); };
+  $('#addClass').onclick = () => classForm();
+  document.querySelectorAll('[data-cedit]').forEach(b => b.onclick = () => classForm(state.classes.find(c => c.id === b.dataset.cedit)));
+  document.querySelectorAll('[data-cdel]').forEach(b => b.onclick = () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(c => c.id !== b.dataset.cdel); save(); render(); } });
+}
+function classForm(c = {}) {
+  const subs = directory();
+  openModal(`<h3 class="font-bold text-lg mb-3">${c.id ? 'Editar' : 'Nueva'} clase</h3>
+    <form id="cf" class="space-y-3">
+      <input name="subject" list="dlSub" required placeholder="Materia" value="${esc(c.subject)}" class="${inputCls}">
+      <datalist id="dlSub">${subs.map(s => `<option value="${esc(s.subject)}">`).join('')}</datalist>
+      <input name="teacher" placeholder="Profesor" value="${esc(c.teacher)}" class="${inputCls}">
+      <input name="room" placeholder="Salón" value="${esc(c.room)}" class="${inputCls}">
+      <select name="day" class="${inputCls}">${DAYS.map((d, i) => `<option value="${i}" ${c.day === i ? 'selected' : ''}>${d}</option>`).join('')}</select>
+      <div class="grid grid-cols-2 gap-3"><label class="text-xs">Inicio<input type="time" name="start" required value="${c.start || '08:00'}" class="${inputCls}"></label>
+      <label class="text-xs">Fin<input type="time" name="end" required value="${c.end || '10:00'}" class="${inputCls}"></label></div>
+      <div class="flex gap-2 pt-1"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Cancelar</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
+  $('#cf').onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    const o = { id: c.id || uid(), subject: f.subject.trim(), teacher: f.teacher.trim(), room: f.room.trim(), day: +f.day, start: f.start, end: f.end };
+    if (c.id) state.classes = state.classes.map(x => x.id === c.id ? o : x); else state.classes.push(o);
+    save(); closeModal(); render(); };
+}
+
+/* ================== Calendario ================== */
+function viewCal() {
+  const first = new Date(cal.y, cal.m, 1), offset = dayIdx(first), total = new Date(cal.y, cal.m + 1, 0).getDate();
+  const byDay = {}; state.tasks.forEach(t => (byDay[t.date] ??= []).push(t));
+  let cells = ''; for (let i = 0; i < offset; i++) cells += '<div></div>';
+  for (let d = 1; d <= total; d++) {
+    const k = `${cal.y}-${pad(cal.m + 1)}-${pad(d)}`, ts = byDay[k] || [], isT = k === iso(new Date()), sel = k === cal.sel;
+    const chips = ts.slice(0, 2).map(t => `<span class="block w-full truncate rounded px-0.5 text-[8px] leading-[12px] font-semibold ${t.done ? 'opacity-50 line-through ' : ''}${sel ? 'bg-white/90 text-emerald-700' : TYPES[t.type].cls}">${TYPES[t.type].label}</span>`).join('');
+    const more = ts.length > 2 ? `<span class="text-[8px] ${sel ? 'text-white' : 'text-slate-400'}">+${ts.length - 2}</span>` : '';
+    cells += `<button data-day="${k}" class="min-h-[60px] rounded-xl flex flex-col items-center justify-start gap-0.5 p-0.5 text-sm transition overflow-hidden
+      ${sel ? 'bg-emerald-500 text-white shadow-lg' : isT ? 'ring-2 ring-emerald-500' : 'hover:bg-slate-200 dark:hover:bg-slate-700'}">
+      <span class="font-medium">${d}</span>${chips}${more}</button>`;
+  }
+  const dayTasks = byDay[cal.sel] || [], dayClasses = state.classes.filter(c => c.day === dayIdx(parseISO(cal.sel)));
+  return `<div class="space-y-4">
+    <div class="${card} p-4">
+      <div class="flex items-center justify-between mb-3">
+        <button id="pm" class="${btnG} !px-3">‹</button><h2 class="font-bold capitalize">${MONTHS[cal.m]} ${cal.y}</h2><button id="nm" class="${btnG} !px-3">›</button></div>
+      <div class="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400 mb-1">${['L','M','M','J','V','S','D'].map(d => `<div>${d}</div>`).join('')}</div>
+      <div class="grid grid-cols-7 gap-1">${cells}</div>
+      <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-slate-500">${Object.values(TYPES).map(t => `<span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full ${t.dot}"></i>${t.label}</span>`).join('')}</div></div>
+    <section><div class="flex items-center justify-between mb-2"><h3 class="font-semibold">${fmtDate(cal.sel)}</h3><button id="addDay" class="${btnP} !py-1.5">+ Agregar</button></div>
+      <div class="space-y-2">${dayTasks.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin eventos este día.</p>`}
+      ${dayClasses.length ? `<p class="text-xs text-slate-400 pt-2">Clases ese día</p>${dayClasses.map(classRow).join('')}` : ''}</div></section></div>`;
+}
+function bindCal() {
+  $('#pm').onclick = () => { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } render(); };
+  $('#nm').onclick = () => { cal.m++; if (cal.m > 11) { cal.m = 0; cal.y++; } render(); };
+  document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { cal.sel = b.dataset.day; render(); });
+  $('#addDay').onclick = () => taskForm({ date: cal.sel });
+  bindTaskActions($('#view'));
+}
+
+/* ================== Pendientes (CRUD) ================== */
+function viewTasks() {
+  let list = [...state.tasks].sort((a, b) => a.date.localeCompare(b.date));
+  if (filter === 'done') list = list.filter(t => t.done);
+  else { list = list.filter(t => !t.done); if (filter !== 'all') list = list.filter(t => t.type === filter); }
+  return `<div class="space-y-3">
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Pendientes</h2><button id="addT" class="${btnP}">+ Nuevo</button></div>
+    <div class="flex gap-2 overflow-x-auto pb-1">${[['all','Todos'], ...Object.entries(TYPES).map(([k, v]) => [k, v.icon + ' ' + v.label]), ['done','✔ Hechos']].map(([k, l]) =>
+      `<button data-f="${k}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition ${filter === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${l}</button>`).join('')}</div>
+    <div class="space-y-2">${list.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-6 text-center">Nada por aquí 🎈</p>`}</div></div>`;
+}
+function bindTasks() {
+  $('#addT').onclick = () => taskForm();
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; render(); });
+  bindTaskActions($('#view'));
+}
+function taskForm(t = {}) {
+  const subs = directory();
+  openModal(`<h3 class="font-bold text-lg mb-3">${t.id ? 'Editar' : 'Nuevo'} pendiente</h3>
+    <form id="tf" class="space-y-3">
+      <div class="grid grid-cols-4 gap-2">${Object.entries(TYPES).map(([k, v]) => `<label class="cursor-pointer"><input type="radio" name="type" value="${k}" class="peer hidden" ${(t.type || 'tarea') === k ? 'checked' : ''}>
+        <div class="text-center rounded-xl py-2 text-[11px] font-semibold bg-slate-100 dark:bg-slate-900 peer-checked:bg-emerald-500 peer-checked:text-white transition"><div class="text-lg">${v.icon}</div>${v.label}</div></label>`).join('')}</div>
+      <input name="title" required placeholder="Título (ej. Parcial 2 de circuitos)" value="${esc(t.title)}" class="${inputCls}">
+      <input name="subject" list="dlSub2" placeholder="Materia" value="${esc(t.subject)}" class="${inputCls}">
+      <datalist id="dlSub2">${subs.map(s => `<option value="${esc(s.subject)}">`).join('')}</datalist>
+      <input name="teacher" placeholder="Profesor" value="${esc(t.teacher)}" class="${inputCls}">
+      <div class="grid grid-cols-2 gap-3"><label class="text-xs">Fecha<input type="date" name="date" required value="${t.date || iso(new Date())}" class="${inputCls}"></label>
+      <label class="text-xs">Hora<input type="time" name="time" value="${t.time || ''}" class="${inputCls}"></label></div>
+      <textarea name="notes" rows="2" placeholder="Notas" class="${inputCls}">${esc(t.notes)}</textarea>
+      <p class="text-[11px] text-slate-500">🔔 Recordatorios: 1 semana, 3 días, 1 día antes y el mismo día.</p>
+      <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Cancelar</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
+  $('#tf').onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    const o = { id: t.id || uid(), type: f.type, title: f.title.trim(), subject: f.subject.trim(), teacher: f.teacher.trim(), date: f.date, time: f.time, notes: f.notes.trim(), done: !!t.done, fired: t.date === f.date ? (t.fired || []) : [] };
+    addTask(o, !!t.id); closeModal(); render(); toast(t.id ? 'Pendiente actualizado' : 'Pendiente creado', '✅'); };
+  ensureNotifPermission();
+}
+function addTask(o, isEdit) {
+  if (isEdit) state.tasks = state.tasks.map(x => x.id === o.id ? o : x); else state.tasks.push(o);
+  localStorage.setItem('studytask.lastAdd', iso(new Date()));
+  save(); checkReminders();
+}
+
+/* ================== Notificaciones ================== */
+function ensureNotifPermission() { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }
+function notify(title, body) {
+  state.notifs.unshift({ id: uid(), title, body, at: new Date().toISOString() });
+  state.notifs = state.notifs.slice(0, 60);
+  toast(`<b>${esc(title)}</b><br>${esc(body)}`, '🔔');
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { navigator.serviceWorker?.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#059669"/><text x="32" y="43" font-size="34" text-anchor="middle">🎓</text></svg>') }) : new Notification(title, { body })); }
+    catch { new Notification(title, { body }); }
+  }
+}
+function checkReminders() {
+  let changed = false;
+  state.tasks.forEach(t => {
+    if (t.done) return;
+    t.fired ??= [];
+    const d = daysUntil(t.date);
+    // Dispara el hito vigente más cercano que aún no se haya notificado
+    const due = REMINDERS.filter(r => d <= r && d >= 0 && !t.fired.includes(r));
+    if (due.length) {
+      const r = Math.min(...due);
+      due.forEach(x => t.fired.push(x));
+      notify(`${TYPES[t.type]?.icon || ''} ${TYPES[t.type]?.label || 'Pendiente'} ${REM_LABEL[r]}`, `${t.title}${t.subject ? ' · ' + t.subject : ''}${t.time ? ' · ' + t.time : ''}`);
+      changed = true;
+    }
+  });
+  if (changed) { save(); if (!$('#modal').classList.contains('flex')) render(); }
+}
+function notifCenter() {
+  state.seenNotifs = state.notifs.length; save(); $('#bellDot').classList.add('hidden');
+  openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg">🔔 Notificaciones</h3><button onclick="closeModal()" class="text-xl">✕</button></div>
+    <div class="space-y-2">${state.notifs.map(n => `<div class="rounded-xl bg-slate-100 dark:bg-slate-900 p-3 text-sm"><b>${esc(n.title)}</b><br><span class="text-slate-500 dark:text-slate-400">${esc(n.body)}</span><div class="text-[10px] text-slate-400 mt-1">${new Date(n.at).toLocaleString('es')}</div></div>`).join('') || '<p class="text-sm text-slate-500">Sin notificaciones aún.</p>'}</div>
+    <div class="flex gap-2 mt-4"><button id="askPerm" class="${btnG} flex-1">Activar avisos del sistema</button><button id="clrN" class="${btnG} flex-1">Limpiar</button></div>`);
+  $('#askPerm').onclick = () => 'Notification' in window ? Notification.requestPermission().then(p => toast('Permiso: ' + p)) : toast('Tu navegador no soporta notificaciones');
+  $('#clrN').onclick = () => { state.notifs = []; state.seenNotifs = 0; save(); closeModal(); };
+}
+
+/* ================== Asistente IA (parser en español, extensible) ================== */
+const WD = { lunes: 0, martes: 1, miercoles: 2, jueves: 3, viernes: 4, sabado: 5, domingo: 6 };
+const MN = Object.fromEntries(MONTHS.map((m, i) => [m, i]));
+const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const NUMW = { un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, diez: 10 };
+
+/* Para conectar un LLM real, reemplaza esta función por una llamada a tu API que devuelva el mismo objeto. */
+async function aiExtract(text) { return parseNatural(text); }
+
+function parseNatural(raw) {
+  const text = raw.trim(), n = strip(text.toLowerCase());
+  const res = { type: 'tarea', date: null, time: '', subject: '', teacher: '', title: '', notes: '' };
+  // Tipo
+  if (/parcial|examen|final|evaluacion/.test(n)) res.type = 'parcial';
+  else if (/quiz|quices|prueba corta/.test(n)) res.type = 'quiz';
+  else if (/trabajo|entrega|proyecto|informe|taller|exposicion/.test(n)) res.type = 'trabajo';
+  // Fecha
+  const now = today0(); let d = null, m;
+  if (/pasado manana/.test(n)) d = addD(now, 2);
+  else if (/\bmanana\b/.test(n) && !/\bmanana\b.*(am|pm)\b.*\bmanana\b/.test(n)) d = addD(now, 1);
+  else if (/\bhoy\b/.test(n)) d = now;
+  else if ((m = n.match(/\ben (\d+|un|una|dos|tres|cuatro|cinco|seis|siete|diez) (dia|dias|semana|semanas)/))) {
+    const q = isNaN(m[1]) ? NUMW[m[1]] : +m[1]; d = addD(now, q * (m[2].startsWith('semana') ? 7 : 1));
+  } else if ((m = n.match(/\b(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: de (\d{4}))?/))) {
+    d = new Date(m[3] ? +m[3] : now.getFullYear(), MN[m[2]], +m[1]); if (!m[3] && d < now) d.setFullYear(d.getFullYear() + 1);
+  } else if ((m = n.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/))) {
+    let y = m[3] ? +m[3] : now.getFullYear(); if (y < 100) y += 2000;
+    d = new Date(y, +m[2] - 1, +m[1]); if (!m[3] && d < now) d.setFullYear(y + 1);
+  } else if ((m = n.match(/\b(proximo|proxima|este|el|del)?\s*(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/))) {
+    const target = WD[m[2]]; let diff = (target - dayIdx(now) + 7) % 7;
+    if (m[1] === 'proximo' || m[1] === 'proxima') { if (diff === 0) diff = 7; if (/proximo|proxima/.test(m[1]) && diff < 7 && target <= dayIdx(now)) diff = diff || 7; }
+    else if (diff === 0) diff = 7;
+    d = addD(now, diff);
+  }
+  if (d) res.date = iso(d);
+  // Hora
+  if ((m = n.match(/(?:a las |a la |las |\b)(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)/))) {
+    let h = +m[1] % 12; if (/^p/.test(m[3])) h += 12; res.time = `${pad(h)}:${m[2] || '00'}`;
+  } else if ((m = n.match(/\ba las (\d{1,2})(?::(\d{2}))?\b/))) { res.time = `${pad(+m[1])}:${m[2] || '00'}`; }
+  else if ((m = n.match(/\b(\d{1,2}):(\d{2})\b/))) res.time = `${pad(+m[1])}:${m[2]}`;
+  // Profesor (usa el texto original para conservar mayúsculas)
+  if ((m = text.match(/(?:profe(?:sor[a]?)?|prof\.?|docente|ing\.?|dr\.?|dra\.?)\s+((?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)/))) res.teacher = m[1].trim();
+  // Materia: "de|en|para <materia>" hasta un marcador
+  const stop = '(?:\\s+(?:el|la|los|este|para|con|a las|a la|del profe|mañana|manana|hoy|pasado|próximo|proximo|en \\d|\\d|con el|con la|profe|profesor|profesora)\\b|[,.;]|$)';
+  const tm = text.match(new RegExp('(?:parcial|quiz|examen|trabajo|tarea|entrega|taller|proyecto|informe|exposici[oó]n|final)(?:\\s+\\d+)?\\s+(?:de|en|sobre)\\s+(.+?)' + stop, 'i'));
+  if (tm) res.subject = tm[1].replace(/\b(el|la)$/i, '').trim();
+  if (res.subject) res.subject = res.subject.replace(/\b\w/g, c => c.toUpperCase());
+  // Si la materia existe en el directorio, normaliza nombre/profesor
+  const known = directory().find(s => res.subject && strip(s.subject.toLowerCase()) === strip(res.subject.toLowerCase()));
+  if (known) { res.subject = known.subject; if (!res.teacher && known.teachers[0]) res.teacher = known.teachers[0]; }
+  res.title = `${TYPES[res.type].label}${res.subject ? ' de ' + res.subject : ''}`;
+  res.notes = '';
+  return res;
+}
+const addD = (d, k) => { const x = new Date(d); x.setDate(x.getDate() + k); return x; };
+
+/* ================== Importador por pantallazo (simulado) ================== */
+/* Sustituye analyzeImage por una llamada a un modelo de visión (OCR + LLM) que devuelva { classes:[], events:[] }. */
+async function analyzeImage(file, onProgress) {
+  const steps = ['Cargando imagen…', 'Detectando tablas y texto…', 'Reconociendo materias y profesores…', 'Mapeando fechas y horas…'];
+  for (let i = 0; i < steps.length; i++) { onProgress((i + 1) / steps.length, steps[i]); await new Promise(r => setTimeout(r, 650)); }
+  const seed = (file.size + file.name.length) % 3;
+  const bank = [
+    { classes: [
+        { subject: 'Cálculo Diferencial', teacher: 'Carlos Ramírez', room: 'B-204', day: 0, start: '07:00', end: '09:00' },
+        { subject: 'Electrónica Análoga', teacher: 'Marta Gómez', room: 'Lab 3', day: 1, start: '09:00', end: '11:00' },
+        { subject: 'Programación', teacher: 'Luis Peña', room: 'Sala 5', day: 2, start: '14:00', end: '16:00' },
+        { subject: 'Física II', teacher: 'Andrea Ruiz', room: 'A-110', day: 3, start: '08:00', end: '10:00' },
+        { subject: 'Cálculo Diferencial', teacher: 'Carlos Ramírez', room: 'B-204', day: 4, start: '07:00', end: '09:00' }],
+      events: [{ type: 'parcial', title: 'Parcial 1 de Cálculo Diferencial', subject: 'Cálculo Diferencial', teacher: 'Carlos Ramírez', off: 9, time: '07:00' },
+               { type: 'quiz', title: 'Quiz de Programación', subject: 'Programación', teacher: 'Luis Peña', off: 4, time: '14:00' }] },
+    { classes: [
+        { subject: 'Circuitos Eléctricos', teacher: 'Jorge Salazar', room: 'C-301', day: 0, start: '10:00', end: '12:00' },
+        { subject: 'Álgebra Lineal', teacher: 'Sofía Mejía', room: 'B-105', day: 2, start: '08:00', end: '10:00' },
+        { subject: 'Ética Profesional', teacher: 'Pedro Arias', room: 'D-12', day: 3, start: '16:00', end: '18:00' },
+        { subject: 'Circuitos Eléctricos', teacher: 'Jorge Salazar', room: 'Lab 1', day: 4, start: '10:00', end: '12:00' }],
+      events: [{ type: 'parcial', title: 'Parcial 2 de Circuitos Eléctricos', subject: 'Circuitos Eléctricos', teacher: 'Jorge Salazar', off: 12, time: '10:00' },
+               { type: 'trabajo', title: 'Entrega taller de Álgebra', subject: 'Álgebra Lineal', teacher: 'Sofía Mejía', off: 6, time: '' }] },
+    { classes: [
+        { subject: 'Estructuras de Datos', teacher: 'Camilo Torres', room: 'Sala 2', day: 1, start: '07:00', end: '09:00' },
+        { subject: 'Bases de Datos', teacher: 'Natalia Cruz', room: 'Sala 4', day: 3, start: '10:00', end: '12:00' },
+        { subject: 'Inglés Técnico', teacher: 'Emily Brown', room: 'E-20', day: 4, start: '13:00', end: '15:00' }],
+      events: [{ type: 'quiz', title: 'Quiz de Bases de Datos', subject: 'Bases de Datos', teacher: 'Natalia Cruz', off: 3, time: '10:00' },
+               { type: 'trabajo', title: 'Proyecto final Estructuras de Datos', subject: 'Estructuras de Datos', teacher: 'Camilo Torres', off: 20, time: '' }] },
+  ][seed];
+  return { classes: bank.classes, events: bank.events.map(e => ({ ...e, date: iso(addD(today0(), e.off)) })) };
+}
+
+/* ================== Vista IA ================== */
+let aiPreview = null, imgResult = null;
+function viewAI() {
+  return `<div class="space-y-5">
+    <section class="${card} p-4 space-y-3">
+      <div class="flex items-center gap-2"><span class="text-2xl">🤖</span><div><h2 class="font-bold">Asistente inteligente</h2><p class="text-xs text-slate-500 dark:text-slate-400">Escribe o pega en lenguaje natural.</p></div></div>
+      <textarea id="aiText" rows="3" class="${inputCls}" placeholder="Parcial de Electrónica el próximo viernes a las 10am con el profe Carlos"></textarea>
+      <div class="flex flex-wrap gap-2">${['Quiz de Física mañana a las 8am con la profe Andrea','Entrega de proyecto de Programación el 15 de noviembre','Tarea de Cálculo en 3 días'].map(s => `<button data-ex="${esc(s)}" class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">${esc(s)}</button>`).join('')}</div>
+      <button id="aiGo" class="${btnP} w-full">✨ Analizar</button>
+      <div id="aiOut">${aiPreview ? aiPreviewHtml() : ''}</div>
+    </section>
+    <section class="${card} p-4 space-y-3">
+      <div class="flex items-center gap-2"><span class="text-2xl">📸</span><div><h2 class="font-bold">Importar desde pantallazo</h2><p class="text-xs text-slate-500 dark:text-slate-400">Horario o cortes de notas de la U.</p></div></div>
+      <label id="drop" class="dropzone block border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-6 text-center cursor-pointer transition">
+        <input id="file" type="file" accept="image/*" class="hidden">
+        <div class="text-3xl mb-1">⬆️</div><p class="text-sm font-medium">Arrastra una imagen o toca para elegir</p><p class="text-[11px] text-slate-500">PNG · JPG · captura de pantalla</p></label>
+      <div id="imgOut">${imgResult ? imgResultHtml() : ''}</div>
+    </section>
+    <section class="${card} p-4"><h3 class="font-semibold mb-2">💾 Datos</h3>
+      <div class="flex flex-wrap gap-2"><button id="exp" class="${btnG}">Exportar JSON</button><label class="${btnG} cursor-pointer">Importar JSON<input id="imp" type="file" accept="application/json" class="hidden"></label><button id="wipe" class="${btnG} !text-rose-500">Borrar todo</button></div></section></div>`;
+}
+function aiPreviewHtml() {
+  const p = aiPreview;
+  return `<div class="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm space-y-1 fade-in">
+    <p class="font-semibold text-emerald-500">Esto es lo que entendí:</p>
+    <p>${TYPES[p.type].icon} <b>${esc(p.title)}</b></p>
+    <p>📅 ${p.date ? fmtDate(p.date) : '<span class="text-amber-500">Sin fecha detectada</span>'}${p.time ? ' · ⏰ ' + p.time : ''}</p>
+    <p>📚 ${esc(p.subject || '—')} &nbsp; 👤 ${esc(p.teacher || '—')}</p>
+    <div class="flex gap-2 pt-2"><button id="aiEdit" class="${btnG} flex-1">Editar</button><button id="aiSave" class="${btnP} flex-1">Crear pendiente</button></div></div>`;
+}
+function imgResultHtml() {
+  const r = imgResult;
+  if (r.loading) return `<div class="space-y-2"><img src="${r.url}" class="rounded-xl max-h-48 mx-auto"><div class="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div id="bar" class="h-full bg-emerald-500 transition-all" style="width:${r.p * 100}%"></div></div><p class="text-xs text-center text-slate-500" id="barTxt">${esc(r.msg)}</p></div>`;
+  return `<div class="space-y-2 fade-in"><img src="${r.url}" class="rounded-xl max-h-40 mx-auto opacity-80">
+    <p class="text-xs text-slate-500 text-center">Análisis simulado: reemplaza <code>analyzeImage()</code> por tu modelo de visión.</p>
+    <p class="font-semibold text-sm">Clases detectadas (${r.data.classes.length})</p>
+    ${r.data.classes.map(c => `<div class="text-xs rounded-lg bg-slate-100 dark:bg-slate-900 p-2"><b>${esc(c.subject)}</b> · ${DAYS[c.day]} ${c.start}-${c.end} · ${esc(c.teacher)} · ${esc(c.room)}</div>`).join('')}
+    <p class="font-semibold text-sm pt-1">Evaluaciones / entregas (${r.data.events.length})</p>
+    ${r.data.events.map(e => `<div class="text-xs rounded-lg bg-slate-100 dark:bg-slate-900 p-2">${TYPES[e.type].icon} <b>${esc(e.title)}</b> · ${fmtDate(e.date)}</div>`).join('')}
+    <div class="flex gap-2 pt-1"><button id="imgCancel" class="${btnG} flex-1">Descartar</button><button id="imgOk" class="${btnP} flex-1">Volcar al calendario</button></div></div>`;
+}
+function bindAI() {
+  document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#aiText').value = b.dataset.ex; });
+  $('#aiGo').onclick = async () => {
+    const t = $('#aiText').value.trim(); if (!t) return toast('Escribe algo primero', '✏️');
+    $('#aiGo').textContent = 'Pensando…'; await new Promise(r => setTimeout(r, 500));
+    aiPreview = await aiExtract(t); $('#aiGo').textContent = '✨ Analizar';
+    $('#aiOut').innerHTML = aiPreviewHtml(); bindAIPrev();
+  };
+  bindAIPrev();
+  const drop = $('#drop'), file = $('#file');
+  file.onchange = () => file.files[0] && handleImg(file.files[0]);
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleImg(f); });
+  bindImgRes();
+  $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })); a.download = 'studytask-backup.json'; a.click(); };
+  $('#imp').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { state = Object.assign(state, JSON.parse(t)); save(); render(); toast('Datos importados', '💾'); } catch { toast('Archivo inválido', '⚠️'); } }); };
+  $('#wipe').onclick = () => { if (confirm('¿Borrar todos los datos?')) { state.tasks = []; state.classes = []; state.notifs = []; save(); render(); } };
+}
+function bindAIPrev() {
+  const s = $('#aiSave'); if (!s) return;
+  s.onclick = () => { const p = aiPreview; if (!p.date) return taskForm({ ...p }); addTask({ id: uid(), ...p, done: false, fired: [] }, false); aiPreview = null; $('#aiText').value = ''; render(); toast('Pendiente creado con IA', '🤖'); };
+  $('#aiEdit').onclick = () => taskForm({ ...aiPreview });
+}
+async function handleImg(file) {
+  if (!file.type.startsWith('image/')) return toast('Sube una imagen', '⚠️');
+  imgResult = { url: URL.createObjectURL(file), loading: true, p: 0, msg: 'Iniciando…' };
+  $('#imgOut').innerHTML = imgResultHtml();
+  const data = await analyzeImage(file, (p, msg) => { imgResult.p = p; imgResult.msg = msg; const b = $('#bar'); if (b) { b.style.width = p * 100 + '%'; $('#barTxt').textContent = msg; } });
+  imgResult = { url: imgResult.url, data }; $('#imgOut').innerHTML = imgResultHtml(); bindImgRes();
+}
+function bindImgRes() {
+  const ok = $('#imgOk'); if (!ok) return;
+  $('#imgCancel').onclick = () => { imgResult = null; render(); };
+  ok.onclick = () => {
+    const key = c => [c.subject, c.day, c.start].join('|');
+    const have = new Set(state.classes.map(key));
+    imgResult.data.classes.forEach(c => { if (!have.has(key(c))) state.classes.push({ id: uid(), ...c }); });
+    imgResult.data.events.forEach(({ off, ...e }) => state.tasks.push({ id: uid(), ...e, notes: 'Importado de pantallazo', done: false, fired: [] }));
+    localStorage.setItem('studytask.lastAdd', iso(new Date()));
+    save(); imgResult = null; checkReminders(); tab = 'week'; render(); toast('Horario y eventos importados', '📸');
+  };
+}
+
+/* ================== Hub "Más" ================== */
+let sub = null;
+const MORE = [
+  ['ai', '🤖', 'Asistente IA e imágenes', 'Crea pendientes con texto natural o pantallazos'],
+  ['focus', '🍅', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
+  ['chat', '💬', 'Chat de estudio', 'Mensajes por materia o grupo'],
+  ['share', '🔗', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
+];
+function viewMore() {
+  if (!sub) return `<div class="space-y-3"><h2 class="text-xl font-bold">Más herramientas</h2>
+    ${MORE.map(([k, i, t, d]) => `<button data-sub="${k}" class="${card} w-full p-4 flex items-center gap-4 text-left hover:ring-2 hover:ring-emerald-500/50 transition">
+      <span class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-2xl">${i}</span>
+      <span class="flex-1"><b class="block text-sm">${t}</b><span class="text-xs text-slate-500 dark:text-slate-400">${d}</span></span><span class="text-slate-400">›</span></button>`).join('')}</div>`;
+  return `<button id="back" class="${btnG} mb-3">‹ Más</button>` + ({ ai: viewAI, focus: viewFocus, chat: viewChat, share: viewShare }[sub])();
+}
+function bindMore() {
+  if (!sub) { document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; render(); window.scrollTo(0, 0); }); return; }
+  $('#back').onclick = () => { sub = null; render(); };
+  ({ ai: bindAI, focus: bindFocus, chat: bindChat, share: bindShare }[sub])();
+}
+
+/* ================== Utilidades de portapapeles / descarga ================== */
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); }
+  catch { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast('Copiado al portapapeles', '📋');
+}
+function download(name, content, mime) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: mime })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ================== Pomodoro ================== */
+const POMO = { '25': { focus: 25, rest: 5 }, '50': { focus: 50, rest: 10 } };
+const RING = 2 * Math.PI * 90;
+const pomoTotal = () => POMO[state.pomo.mode][state.pomo.phase === 'focus' ? 'focus' : 'rest'] * 60;
+const pomoLeft = () => state.pomo.running ? Math.max(0, Math.round((state.pomo.endsAt - Date.now()) / 1000)) : state.pomo.left;
+const mmss = s => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+function pomoDay() { if (state.pomo.day !== iso(new Date())) { state.pomo.day = iso(new Date()); state.pomo.count = 0; save(); } }
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach(t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.2, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.22); });
+  } catch {}
+  navigator.vibrate?.([300, 150, 300]);
+}
+function pomoFinish() {
+  const p = state.pomo, wasFocus = p.phase === 'focus';
+  pomoDay(); p.running = false;
+  if (wasFocus) p.count++;
+  p.phase = wasFocus ? 'rest' : 'focus'; p.left = pomoTotal(); save();
+  beep();
+  const msg = wasFocus ? '¡Bloque de enfoque completado! Toma un descanso.' : 'Descanso terminado. ¡A concentrarse!';
+  notify(wasFocus ? '🍅 ¡Enfoque completado!' : '⏰ Fin del descanso', msg);
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[70] grid place-items-center bg-emerald-600/90 backdrop-blur-sm text-white text-center p-6 fade-in';
+  ov.innerHTML = `<div><div class="text-7xl animate-bounce">${wasFocus ? '🎉' : '💪'}</div><h2 class="font-title text-2xl mt-4">${wasFocus ? '¡Bien hecho!' : '¡Vamos de nuevo!'}</h2><p class="mt-2">${msg}</p><button class="mt-6 bg-white text-emerald-700 font-bold rounded-2xl px-6 py-3">Continuar</button></div>`;
+  ov.querySelector('button').onclick = () => ov.remove(); document.body.appendChild(ov);
+  if (tab === 'more' && sub === 'focus') render();
+}
+function updatePomoUI() {
+  const t = $('#pomoTime'); if (!t) return;
+  const left = pomoLeft(), total = pomoTotal();
+  t.textContent = mmss(left);
+  $('#pomoRing').style.strokeDashoffset = RING * (1 - (total - left) / total);
+}
+setInterval(() => { if (state.pomo.running) { if (pomoLeft() <= 0) pomoFinish(); else updatePomoUI(); } }, 500);
+function viewFocus() {
+  const p = state.pomo; pomoDay();
+  const focus = p.phase === 'focus';
+  return `<div class="space-y-4"><h2 class="text-xl font-bold">🍅 Modo enfoque</h2>
+    <div class="flex gap-2">${Object.entries(POMO).map(([k, v]) => `<button data-mode="${k}" class="flex-1 rounded-xl py-2 text-sm font-semibold transition ${p.mode === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${v.focus} / ${v.rest} min</button>`).join('')}</div>
+    <div class="${card} p-6 flex flex-col items-center">
+      <span id="pomoPhase" class="text-xs font-semibold px-3 py-1 rounded-full ${focus ? 'bg-emerald-500/15 text-emerald-500' : 'bg-sky-500/15 text-sky-400'}">${focus ? '🎯 Enfoque' : '☕ Descanso'}</span>
+      <div class="relative my-4 w-56 h-56">
+        <svg viewBox="0 0 200 200" class="w-full h-full -rotate-90"><circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="10"/>
+          <circle id="pomoRing" cx="100" cy="100" r="90" fill="none" stroke="${focus ? '#10B981' : '#38BDF8'}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${RING}" style="stroke-dashoffset:0;transition:stroke-dashoffset .5s linear"/></svg>
+        <div id="pomoTime" class="absolute inset-0 grid place-items-center font-title text-5xl">${mmss(pomoLeft())}</div></div>
+      <div class="flex gap-2 w-full"><button id="pStart" class="${btnP} flex-1">${p.running ? '⏸ Pausar' : '▶ Iniciar'}</button><button id="pReset" class="${btnG} flex-1">↺ Reiniciar</button><button id="pSkip" class="${btnG}" title="Saltar fase">⏭</button></div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-4">Bloques completados hoy: <b class="text-emerald-500">${p.count}</b> 🍅</p></div></div>`;
+}
+function bindFocus() {
+  const p = state.pomo; updatePomoUI();
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { p.mode = b.dataset.mode; p.running = false; p.phase = 'focus'; p.left = pomoTotal(); save(); render(); });
+  $('#pStart').onclick = () => {
+    if (p.running) { p.left = pomoLeft(); p.running = false; }
+    else { if (p.left <= 0) p.left = pomoTotal(); p.endsAt = Date.now() + p.left * 1000; p.running = true; ensureNotifPermission(); }
+    save(); render();
+  };
+  $('#pReset').onclick = () => { p.running = false; p.left = pomoTotal(); save(); render(); };
+  $('#pSkip').onclick = () => { p.running = false; p.phase = p.phase === 'focus' ? 'rest' : 'focus'; p.left = pomoTotal(); save(); render(); };
+}
+
+/* ================== Compartir / Importar / Google Calendar ================== */
+let shareOpts = { fmt: 'json', tasks: true, classes: true };
+const taskKey = t => [t.type, t.title.toLowerCase(), t.date, t.time || ''].join('|');
+const classKey = c => [c.subject.toLowerCase(), c.day, c.start].join('|');
+function exportPayload() {
+  return { app: 'UniversityPlanner', v: 1, from: state.name || '',
+    tasks: shareOpts.tasks ? state.tasks.filter(t => !t.done).map(({ type, title, subject, teacher, date, time, notes }) => ({ type, title, subject, teacher, date, time, notes })) : [],
+    classes: shareOpts.classes ? state.classes.map(({ subject, teacher, room, day, start, end }) => ({ subject, teacher, room, day, start, end })) : [] };
+}
+function exportText() {
+  const p = exportPayload(), L = [`🎓 University Planner${p.from ? ' — cronograma de ' + p.from : ''}`];
+  if (p.tasks.length) { L.push('', '📌 PENDIENTES'); p.tasks.sort((a, b) => a.date.localeCompare(b.date)).forEach(t => L.push(`${TYPES[t.type]?.icon || '•'} ${TYPES[t.type]?.label || t.type}: ${t.title}${t.subject ? ' (' + t.subject + ')' : ''} — ${fmtDate(t.date)}${t.time ? ' ' + t.time : ''}${t.teacher ? ' · Prof. ' + t.teacher : ''}`)); }
+  if (p.classes.length) { L.push('', '🗓️ HORARIO'); [...p.classes].sort((a, b) => a.day - b.day || a.start.localeCompare(b.start)).forEach(c => L.push(`${DAYS[c.day]} ${c.start}-${c.end}: ${c.subject}${c.room ? ' · ' + c.room : ''}${c.teacher ? ' · ' + c.teacher : ''}`)); }
+  return L.join('\n');
+}
+function exportOutput() { return shareOpts.fmt === 'json' ? JSON.stringify(exportPayload()) : exportText(); }
+const s60 = (v, n = 120) => String(v ?? '').slice(0, n);
+function importPayload(raw) {
+  const i = raw.indexOf('{'), j = raw.lastIndexOf('}');
+  if (i < 0 || j < i) throw new Error('No se encontró código JSON');
+  const d = JSON.parse(raw.slice(i, j + 1));
+  if (d.app !== 'UniversityPlanner') throw new Error('Formato no reconocido');
+  const haveT = new Set(state.tasks.map(taskKey)), haveC = new Set(state.classes.map(classKey));
+  let nt = 0, nc = 0;
+  (Array.isArray(d.tasks) ? d.tasks : []).forEach(x => {
+    if (!x || typeof x.title !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date || '')) return;
+    const t = { id: uid(), type: TYPES[x.type] ? x.type : 'tarea', title: s60(x.title), subject: s60(x.subject), teacher: s60(x.teacher), date: x.date, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', notes: s60(x.notes, 300), done: false, fired: [] };
+    if (!t.title || haveT.has(taskKey(t))) return;
+    haveT.add(taskKey(t)); state.tasks.push(t); nt++;
+  });
+  (Array.isArray(d.classes) ? d.classes : []).forEach(x => {
+    if (!x || typeof x.subject !== 'string' || !Number.isInteger(x.day) || x.day < 0 || x.day > 6 || !/^\d{2}:\d{2}$/.test(x.start || '') || !/^\d{2}:\d{2}$/.test(x.end || '')) return;
+    const c = { id: uid(), subject: s60(x.subject), teacher: s60(x.teacher), room: s60(x.room, 40), day: x.day, start: x.start, end: x.end };
+    if (!c.subject || haveC.has(classKey(c))) return;
+    haveC.add(classKey(c)); state.classes.push(c); nc++;
+  });
+  save(); checkReminders();
+  return { nt, nc, from: s60(d.from, 40) };
+}
+
+const compact = (s, t) => s.replace(/-/g, '') + (t ? 'T' + t.replace(':', '') + '00' : '');
+function eventTimes(t) {
+  if (t.time) { const [h, m] = t.time.split(':').map(Number), e = new Date(parseISO(t.date)); e.setHours(h + 1, m);
+    return { start: compact(t.date, t.time), end: `${compact(iso(e))}T${pad(e.getHours())}${pad(e.getMinutes())}00`, allDay: false }; }
+  return { start: compact(t.date), end: compact(iso(addD(parseISO(t.date), 1))), allDay: true };
+}
+const syncable = () => state.tasks.filter(t => !t.done && daysUntil(t.date) >= 0);
+const icsEsc = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+function buildICS(tasks) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//University Planner by Megabyte//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  tasks.forEach(t => {
+    const e = eventTimes(t), ty = TYPES[t.type] || TYPES.tarea;
+    L.push('BEGIN:VEVENT', `UID:${t.id}@universityplanner`, `DTSTAMP:${stamp}`,
+      e.allDay ? `DTSTART;VALUE=DATE:${e.start}` : `DTSTART:${e.start}`, e.allDay ? `DTEND;VALUE=DATE:${e.end}` : `DTEND:${e.end}`,
+      `SUMMARY:${icsEsc(`${ty.label}: ${t.title}`)}`, `DESCRIPTION:${icsEsc([t.subject, t.teacher && 'Prof. ' + t.teacher, t.notes].filter(Boolean).join(' · '))}`);
+    REMINDERS.forEach(r => L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(`${ty.label} ${REM_LABEL[r]}: ${t.title}`)}`,
+      `TRIGGER:${r ? '-P' + r + 'D' : (e.allDay ? 'PT8H' : '-PT1H')}`, 'END:VALARM'));
+    L.push('END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+  return L.join('\r\n');
+}
+function gcalLink(t) {
+  const e = eventTimes(t), ty = TYPES[t.type] || TYPES.tarea;
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: `${ty.label}: ${t.title}`, dates: `${e.start}/${e.end}`, details: [t.subject, t.teacher && 'Prof. ' + t.teacher, t.notes].filter(Boolean).join(' · ') });
+  return 'https://calendar.google.com/calendar/render?' + q.toString();
+}
+function viewShare() {
+  const list = syncable();
+  return `<div class="space-y-5">
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📤 Compartir cronograma / pendientes</h2>
+      <div class="flex flex-wrap gap-3 text-xs">
+        <label class="flex items-center gap-1"><input type="checkbox" id="oT" ${shareOpts.tasks ? 'checked' : ''}> Pendientes</label>
+        <label class="flex items-center gap-1"><input type="checkbox" id="oC" ${shareOpts.classes ? 'checked' : ''}> Horario</label></div>
+      <div class="flex gap-2">${[['json', 'Código JSON'], ['text', 'Texto legible']].map(([k, l]) => `<button data-fmt="${k}" class="flex-1 rounded-xl py-2 text-xs font-semibold ${shareOpts.fmt === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700'}">${l}</button>`).join('')}</div>
+      <textarea id="shOut" readonly rows="6" class="${inputCls} font-mono text-xs">${esc(exportOutput())}</textarea>
+      <p class="text-[11px] text-slate-500">Tu compañero solo puede importar el <b>código JSON</b>; el texto legible es para leer o enviar por chat.</p>
+      <div class="flex gap-2"><button id="shCopy" class="${btnP} flex-1">📋 Copiar</button>${navigator.share ? `<button id="shShare" class="${btnG} flex-1">↗ Compartir</button>` : ''}</div></section>
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📥 Importar calendario</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Pega el código de un compañero. Los eventos repetidos se omiten.</p>
+      <textarea id="imIn" rows="4" class="${inputCls} font-mono text-xs" placeholder='{"app":"UniversityPlanner",...}'></textarea>
+      <button id="imGo" class="${btnP} w-full">Importar</button></section>
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📆 Google Calendar</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Descarga un archivo <b>.ics</b> con tus ${list.length} pendientes próximos (incluye alertas: 1 semana, 3 días, 1 día y el mismo día) e impórtalo en Google Calendar → Configuración → Importar y exportar. O agrega cada evento con un clic:</p>
+      <button id="icsBtn" class="${btnP} w-full" ${list.length ? '' : 'disabled style="opacity:.5"'}>⬇ Sincronizar con Google Calendar (.ics)</button>
+      <div class="space-y-1.5 max-h-56 overflow-y-auto">${list.map(t => `<a href="${gcalLink(t)}" target="_blank" rel="noopener" class="flex items-center justify-between gap-2 rounded-xl bg-slate-100 dark:bg-slate-900 px-3 py-2 text-xs hover:ring-1 hover:ring-emerald-500">
+        <span class="truncate">${(TYPES[t.type] || TYPES.tarea).icon} ${esc(t.title)} · ${fmtDate(t.date)}</span><span class="text-emerald-500 shrink-0 font-semibold">➕ Google</span></a>`).join('') || '<p class="text-xs text-slate-500">No hay pendientes próximos.</p>'}</div></section></div>`;
+}
+function bindShare() {
+  const refresh = () => { $('#shOut').value = exportOutput(); };
+  $('#oT').onchange = e => { shareOpts.tasks = e.target.checked; refresh(); };
+  $('#oC').onchange = e => { shareOpts.classes = e.target.checked; refresh(); };
+  document.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { shareOpts.fmt = b.dataset.fmt; render(); });
+  $('#shCopy').onclick = () => copyText($('#shOut').value);
+  const sh = $('#shShare'); if (sh) sh.onclick = () => navigator.share({ title: 'University Planner', text: $('#shOut').value }).catch(() => {});
+  $('#imGo').onclick = () => {
+    try { const r = importPayload($('#imIn').value); render(); toast(`Importado${r.from ? ' de ' + esc(r.from) : ''}: ${r.nt} pendientes y ${r.nc} clases nuevas`, '📥'); }
+    catch (e) { toast('No se pudo importar: ' + esc(e.message), '⚠️'); }
+  };
+  $('#icsBtn').onclick = () => { download('university-planner.ics', buildICS(syncable()), 'text/calendar'); toast('Archivo .ics descargado. Ábrelo o impórtalo en Google Calendar.', '📆'); };
+}
+
+/* ================== Chat por materia / grupo ================== */
+let chatRoom = 'General';
+const allRooms = () => { const seen = new Set(), out = []; ['General', ...directory().map(s => s.subject), ...state.rooms].forEach(r => { const k = r.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(r); } }); return out; };
+const chatBC = 'BroadcastChannel' in window ? new BroadcastChannel('up-chat') : null;
+function mergeChat(msgs) {
+  const have = new Set(state.chat.map(m => m.id)); let n = 0;
+  msgs.forEach(m => {
+    if (!m || typeof m.id !== 'string' || typeof m.text !== 'string' || have.has(m.id) || isNaN(Date.parse(m.at))) return;
+    const room = s60(m.room, 40) || 'General';
+    if (!allRooms().some(r => r.toLowerCase() === room.toLowerCase())) state.rooms.push(room);
+    state.chat.push({ id: m.id, room, author: s60(m.author, 30) || 'Anónimo', dev: s60(m.dev, 20), text: s60(m.text, 1000), at: new Date(m.at).toISOString() }); have.add(m.id); n++;
+  });
+  if (n) { state.chat.sort((a, b) => a.at.localeCompare(b.at)); state.chat = state.chat.slice(-1000); save(); }
+  return n;
+}
+if (chatBC) chatBC.onmessage = e => { if (e.data?.msg && mergeChat([e.data.msg]) && tab === 'more' && sub === 'chat') chatMsgsHtml(); };
+function chatMsgsHtml() {
+  const el = $('#chatList'); if (!el) return;
+  const msgs = state.chat.filter(m => m.room.toLowerCase() === chatRoom.toLowerCase());
+  el.innerHTML = msgs.map(m => {
+    const mine = m.dev === state.deviceId, d = new Date(m.at), same = iso(d) === iso(new Date());
+    const time = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + (same ? '' : ' · ' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3));
+    return `<div class="max-w-[85%] ${mine ? 'self-end' : 'self-start'}"><div class="rounded-2xl px-3 py-2 text-sm ${mine ? 'bg-emerald-500 text-white rounded-br-sm' : 'bg-slate-100 dark:bg-slate-900 rounded-bl-sm'}">
+      <div class="text-[11px] font-bold ${mine ? 'text-emerald-100' : 'text-emerald-500'}">${esc(m.author)}</div><div class="whitespace-pre-wrap break-words">${esc(m.text)}</div>
+      <div class="text-[10px] text-right mt-0.5 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</div></div></div>`;
+  }).join('') || '<p class="m-auto text-sm text-slate-400">Aún no hay mensajes. ¡Escribe el primero!</p>';
+  el.scrollTop = el.scrollHeight;
+}
+function viewChat() {
+  const rooms = allRooms(); if (!rooms.some(r => r.toLowerCase() === chatRoom.toLowerCase())) chatRoom = 'General';
+  return `<div class="space-y-3">
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">💬 Chat de estudio</h2><button id="addRoom" class="${btnG}">+ Grupo</button></div>
+    <div class="flex gap-2 overflow-x-auto pb-1">${rooms.map(r => `<button data-room="${esc(r)}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${r.toLowerCase() === chatRoom.toLowerCase() ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(r)}</button>`).join('')}</div>
+    <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
+    <form id="chatForm" class="flex gap-2"><input id="chatInput" maxlength="1000" autocomplete="off" placeholder="Mensaje para ${esc(chatRoom)}…" class="${inputCls}"><button class="${btnP}">Enviar</button></form>
+    <details class="${card} p-3 text-sm"><summary class="cursor-pointer font-semibold">🔄 Sincronizar con compañeros</summary>
+      <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Esta versión guarda los mensajes en tu dispositivo (y los comparte entre pestañas abiertas). Para intercambiarlos con otros, copia los mensajes de esta sala y pégalos en su app. El chat en vivo entre dispositivos requiere un servidor (p. ej. Firebase).</p>
+      <button id="chExp" class="${btnG} w-full mb-2">📋 Copiar mensajes de esta sala</button>
+      <textarea id="chIn" rows="3" class="${inputCls} font-mono text-xs" placeholder="Pega aquí mensajes de un compañero"></textarea>
+      <div class="flex gap-2 mt-2"><button id="chImp" class="${btnP} flex-1">Importar mensajes</button><button id="chClr" class="${btnG} !text-rose-500">Limpiar sala</button></div></details></div>`;
+}
+function bindChat() {
+  chatMsgsHtml();
+  document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { chatRoom = b.dataset.room; render(); });
+  $('#addRoom').onclick = () => { const n = (prompt('Nombre del grupo de estudio:') || '').trim().slice(0, 40); if (!n) return; if (!allRooms().some(r => r.toLowerCase() === n.toLowerCase())) state.rooms.push(n); chatRoom = n; save(); render(); };
+  $('#chatForm').onsubmit = e => {
+    e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
+    const m = { id: uid() + state.deviceId.slice(0, 4), room: chatRoom, author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
+    mergeChat([m]); chatBC?.postMessage({ msg: m }); inp.value = ''; chatMsgsHtml();
+  };
+  $('#chExp').onclick = () => copyText(JSON.stringify({ app: 'UniversityPlannerChat', chat: state.chat.filter(m => m.room.toLowerCase() === chatRoom.toLowerCase()).map(({ id, room, author, text, at }) => ({ id, room, author, text, at })) }));
+  $('#chImp').onclick = () => {
+    try { const raw = $('#chIn').value, i = raw.indexOf('{'), j = raw.lastIndexOf('}'), d = JSON.parse(raw.slice(i, j + 1));
+      if (d.app !== 'UniversityPlannerChat' || !Array.isArray(d.chat)) throw new Error('Formato no reconocido');
+      const n = mergeChat(d.chat); render(); toast(`${n} mensajes nuevos importados`, '💬'); }
+    catch (e) { toast('No se pudo importar: ' + esc(e.message), '⚠️'); }
+  };
+  $('#chClr').onclick = () => { if (confirm('¿Borrar los mensajes de esta sala en este dispositivo?')) { state.chat = state.chat.filter(m => m.room.toLowerCase() !== chatRoom.toLowerCase()); save(); chatMsgsHtml(); } };
+}
+
+/* ================== PWA ================== */
+(function pwa() {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+
+/* ================== Init ================== */
+applyTheme(); render(); checkReminders();
+if (!state.name && !localStorage.getItem('up.nameAsked')) { localStorage.setItem('up.nameAsked', '1'); nameForm(); }
+setInterval(checkReminders, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminders(); render(); } });
+</script>
+</body>
+</html>
