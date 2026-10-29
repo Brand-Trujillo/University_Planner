@@ -7,4 +7,4 @@ PWA instalable: dashboard, horario, calendario, pendientes con recordatorios, as
 ## Uso
 Abre la página publicada en Chrome del celular → menú ⋮ → **Instalar app**.
 
-Demo: https://brand-trujillo.github.io/university-planner/
+Demo: https://brand-trujillo.github.io/university_planner/
