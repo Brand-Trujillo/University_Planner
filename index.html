@@ -85,8 +85,12 @@ const REMINDERS = [7, 3, 1, 0];
 const REM_LABEL = { 7: 'en 1 semana', 3: 'en 3 días', 1: 'mañana', 0: 'hoy' };
 
 /* ================== Estado / localStorage ================== */
-/* Pega aquí tu "ID de cliente" de Google Cloud (termina en .apps.googleusercontent.com). Ver README. */
-const GOOGLE_CLIENT_ID = '';
+/* Pega aquí la configuración de tu app web de Firebase (Configuración del proyecto → Tus apps). Ver README.
+   Vacía = la app funciona solo en local, sin cuentas en la nube. */
+const FIREBASE_CONFIG = {
+  // apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
+};
+const FB_ON = !!FIREBASE_CONFIG.apiKey;
 /* Opcional: limita el acceso a dominios, p. ej. ['cun.edu.co']. Vacío = cualquier cuenta de Google. */
 const ALLOWED_DOMAINS = [];
 
@@ -100,7 +104,13 @@ let state = (() => {
   try { return Object.assign({ tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }, JSON.parse(localStorage.getItem(KEY)) || {}); }
   catch { return { tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }; }
 })();
-const save = () => localStorage.setItem(KEY, JSON.stringify(state));
+const cloud = { ready: false, applying: false, lastJson: '', timer: null, ref: null, unsub: null, chatUnsub: null, chatCol: null };
+const cloudPayload = () => JSON.stringify({ tasks: state.tasks, classes: state.classes, name: state.name, theme: state.theme, groupCode: state.groupCode || '' });
+const save = () => {
+  if (cloud.ready && !cloud.applying && cloudPayload() !== cloud.lastJson) state.cloudAt = Date.now();
+  localStorage.setItem(KEY, JSON.stringify(state));
+  if (cloud.ready && !cloud.applying) { clearTimeout(cloud.timer); cloud.timer = setTimeout(cloudPush, 1500); }
+};
 state.chat ??= []; state.rooms ??= []; state.deviceId ||= uid();
 state.pomo ??= { mode: '25', phase: 'focus', running: false, endsAt: 0, left: 25 * 60, count: 0, day: iso(new Date()) };
 
@@ -792,17 +802,18 @@ function mergeChat(msgs) {
     if (!m || typeof m.id !== 'string' || typeof m.text !== 'string' || have.has(m.id) || isNaN(Date.parse(m.at))) return;
     const room = s60(m.room, 40) || 'General';
     if (!allRooms().some(r => r.toLowerCase() === room.toLowerCase())) state.rooms.push(room);
-    state.chat.push({ id: m.id, room, author: s60(m.author, 30) || 'Anónimo', dev: s60(m.dev, 20), text: s60(m.text, 1000), at: new Date(m.at).toISOString() }); have.add(m.id); n++;
+    state.chat.push({ id: m.id, room, g: s60(m.g, 40), uid: s60(m.uid, 40), author: s60(m.author, 30) || 'Anónimo', dev: s60(m.dev, 20), text: s60(m.text, 1000), at: new Date(m.at).toISOString() }); have.add(m.id); n++;
   });
   if (n) { state.chat.sort((a, b) => a.at.localeCompare(b.at)); state.chat = state.chat.slice(-1000); save(); }
   return n;
 }
 if (chatBC) chatBC.onmessage = e => { if (e.data?.msg && mergeChat([e.data.msg]) && tab === 'more' && sub === 'chat') chatMsgsHtml(); };
+const inGroup = m => (m.g || '') === (state.groupCode || '');
 function chatMsgsHtml() {
   const el = $('#chatList'); if (!el) return;
-  const msgs = state.chat.filter(m => m.room.toLowerCase() === chatRoom.toLowerCase());
+  const msgs = state.chat.filter(m => inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase());
   el.innerHTML = msgs.map(m => {
-    const mine = m.dev === state.deviceId, d = new Date(m.at), same = iso(d) === iso(new Date());
+    const mine = m.dev === state.deviceId || (m.uid && m.uid === SESSION?.uid), d = new Date(m.at), same = iso(d) === iso(new Date());
     const time = d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + (same ? '' : ' · ' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3));
     return `<div class="max-w-[85%] ${mine ? 'self-end' : 'self-start'}"><div class="rounded-2xl px-3 py-2 text-sm ${mine ? 'bg-emerald-500 text-white rounded-br-sm' : 'bg-slate-100 dark:bg-slate-900 rounded-bl-sm'}">
       <div class="text-[11px] font-bold ${mine ? 'text-emerald-100' : 'text-emerald-500'}">${esc(m.author)}</div><div class="whitespace-pre-wrap break-words">${esc(m.text)}</div>
@@ -817,8 +828,15 @@ function viewChat() {
     <div class="flex gap-2 overflow-x-auto pb-1">${rooms.map(r => `<button data-room="${esc(r)}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${r.toLowerCase() === chatRoom.toLowerCase() ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(r)}</button>`).join('')}</div>
     <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
     <form id="chatForm" class="flex gap-2"><input id="chatInput" maxlength="1000" autocomplete="off" placeholder="Mensaje para ${esc(chatRoom)}…" class="${inputCls}"><button class="${btnP}">Enviar</button></form>
-    <details class="${card} p-3 text-sm"><summary class="cursor-pointer font-semibold">🔄 Sincronizar con compañeros</summary>
-      <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Esta versión guarda los mensajes en tu dispositivo (y los comparte entre pestañas abiertas). Para intercambiarlos con otros, copia los mensajes de esta sala y pégalos en su app. El chat en vivo entre dispositivos requiere un servidor (p. ej. Firebase).</p>
+    <details class="${card} p-3 text-sm" ${FB_ON && !state.groupCode ? 'open' : ''}><summary class="cursor-pointer font-semibold">☁️ Grupo en vivo ${state.groupCode ? '· ' + esc(state.groupCode) : ''}</summary>
+      ${FB_ON && SESSION?.provider === 'google' ? `
+      <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Escribe el mismo <b>código de grupo</b> que tus compañeros (ej. <i>cun-sistemas-3a</i>) y chatearán en vivo. Cualquiera que conozca el código puede leer el chat: usa uno difícil de adivinar.</p>
+      <div class="flex gap-2"><input id="gcIn" maxlength="30" value="${esc(state.groupCode || '')}" placeholder="codigo-del-grupo" class="${inputCls}"><button id="gcSave" class="${btnP}">${state.groupCode ? 'Cambiar' : 'Unirme'}</button></div>
+      <p class="text-[11px] mt-1 ${cloud.chatUnsub ? 'text-emerald-500' : 'text-slate-400'}">${cloud.chatUnsub ? '● Conectado en vivo' : state.groupCode ? '○ Conectando…' : 'Sin grupo: el chat es solo local.'}</p>`
+      : `<p class="text-xs text-slate-500 dark:text-slate-400 my-2">El chat en vivo se activa al iniciar sesión con Google (con Firebase configurado). Mientras tanto los mensajes se guardan solo en tu dispositivo.</p>`}
+    </details>
+    <details class="${card} p-3 text-sm"><summary class="cursor-pointer font-semibold">🔄 Copiar / pegar mensajes</summary>
+      <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Alternativa sin conexión: copia los mensajes de esta sala y pégalos en la app de un compañero.</p>
       <button id="chExp" class="${btnG} w-full mb-2">📋 Copiar mensajes de esta sala</button>
       <textarea id="chIn" rows="3" class="${inputCls} font-mono text-xs" placeholder="Pega aquí mensajes de un compañero"></textarea>
       <div class="flex gap-2 mt-2"><button id="chImp" class="${btnP} flex-1">Importar mensajes</button><button id="chClr" class="${btnG} !text-rose-500">Limpiar sala</button></div></details></div>`;
@@ -829,17 +847,24 @@ function bindChat() {
   $('#addRoom').onclick = () => { const n = (prompt('Nombre del grupo de estudio:') || '').trim().slice(0, 40); if (!n) return; if (!allRooms().some(r => r.toLowerCase() === n.toLowerCase())) state.rooms.push(n); chatRoom = n; save(); render(); };
   $('#chatForm').onsubmit = e => {
     e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
-    const m = { id: uid() + state.deviceId.slice(0, 4), room: chatRoom, author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
+    const m = { id: uid() + state.deviceId.slice(0, 4), room: chatRoom, g: state.groupCode || '', uid: SESSION?.uid || '', author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
     mergeChat([m]); chatBC?.postMessage({ msg: m }); inp.value = ''; chatMsgsHtml();
+    if (cloud.chatCol && state.groupCode) cloud.chatCol.doc(m.id).set({ room: m.room, author: m.author, uid: m.uid, text: m.text, at: m.at }).catch(() => toast('No se pudo enviar a tu grupo (¿sin conexión?)', '⚠️'));
   };
-  $('#chExp').onclick = () => copyText(JSON.stringify({ app: 'UniversityPlannerChat', chat: state.chat.filter(m => m.room.toLowerCase() === chatRoom.toLowerCase()).map(({ id, room, author, text, at }) => ({ id, room, author, text, at })) }));
+  const gs = $('#gcSave');
+  if (gs) gs.onclick = () => {
+    const c = normCode($('#gcIn').value);
+    if ($('#gcIn').value.trim() && c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');
+    state.groupCode = c; save(); chatCloudStart(); render();
+  };
+  $('#chExp').onclick = () => copyText(JSON.stringify({ app: 'UniversityPlannerChat', chat: state.chat.filter(m => inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase()).map(({ id, room, author, text, at }) => ({ id, room, author, text, at })) }));
   $('#chImp').onclick = () => {
     try { const raw = $('#chIn').value, i = raw.indexOf('{'), j = raw.lastIndexOf('}'), d = JSON.parse(raw.slice(i, j + 1));
       if (d.app !== 'UniversityPlannerChat' || !Array.isArray(d.chat)) throw new Error('Formato no reconocido');
-      const n = mergeChat(d.chat); render(); toast(`${n} mensajes nuevos importados`, '💬'); }
+      const n = mergeChat(d.chat.map(m => ({ ...m, g: state.groupCode || '' }))); render(); toast(`${n} mensajes nuevos importados`, '💬'); }
     catch (e) { toast('No se pudo importar: ' + esc(e.message), '⚠️'); }
   };
-  $('#chClr').onclick = () => { if (confirm('¿Borrar los mensajes de esta sala en este dispositivo?')) { state.chat = state.chat.filter(m => m.room.toLowerCase() !== chatRoom.toLowerCase()); save(); chatMsgsHtml(); } };
+  $('#chClr').onclick = () => { if (confirm('¿Borrar los mensajes de esta sala en este dispositivo?')) { state.chat = state.chat.filter(m => !(inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase())); save(); chatMsgsHtml(); } };
 }
 
 /* ================== PWA ================== */
@@ -854,17 +879,95 @@ function startSession(s) {
   localStorage.setItem('up.session', JSON.stringify(s)); location.reload();
 }
 function loginMsg(t) { const el = $('#loginMsg'); if (el) el.textContent = t; }
-function decodeJwt(tok) {
-  const p = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-  return JSON.parse(decodeURIComponent(atob(p).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join('')));
-}
-function onGoogleCredential(resp) {
+/* ---------- Firebase (se carga solo si hay configuración) ---------- */
+let fb = null;
+const loadScript = src => new Promise((ok, fail) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
+async function fbInit() {
+  if (!FB_ON) return null;
+  if (fb) return fb;
   try {
-    const u = decodeJwt(resp.credential);
-    if (!u.email || u.email_verified === false) return loginMsg('Correo de Google no verificado.');
-    startSession({ email: u.email.toLowerCase(), name: u.given_name || u.name || '', picture: u.picture || '', provider: 'google' });
-  } catch { loginMsg('No se pudo iniciar sesión con Google.'); }
+    for (const f of ['app', 'auth', 'firestore']) await loadScript(`vendor/firebase-${f}-compat.js`);
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fb = { auth: firebase.auth(), db: firebase.firestore() };
+  } catch { fb = null; }
+  return fb;
 }
+const normCode = s => String(s || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+
+function finishFirebaseLogin(u) {
+  const email = (u.email || '').toLowerCase();
+  if (!email) return loginMsg('Tu cuenta de Google no tiene correo.');
+  if (!domainOk(email)) { fb?.auth.signOut(); return loginMsg(`Solo se permiten cuentas de: ${ALLOWED_DOMAINS.join(', ')}`); }
+  startSession({ email, name: (u.displayName || '').split(' ')[0], picture: u.photoURL || '', provider: 'google', uid: u.uid });
+}
+async function googleSignIn() {
+  loginMsg('');
+  const f = await fbInit();
+  if (!f) return loginMsg('No se pudo cargar Firebase. Revisa tu internet o usa tu correo.');
+  const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+  try { finishFirebaseLogin((await f.auth.signInWithPopup(p)).user); }
+  catch (e) {
+    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) return f.auth.signInWithRedirect(p);
+    if (!['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(e.code)) loginMsg('No se pudo iniciar sesión (' + (e.code || 'error') + ').');
+  }
+}
+
+/* Sincronización de pendientes, horario y perfil: el documento más reciente gana. */
+async function cloudPush() {
+  if (!cloud.ready || !cloud.ref) return;
+  const json = cloudPayload(); if (json === cloud.lastJson) return;
+  try { await cloud.ref.set({ data: json, updatedAt: state.cloudAt || Date.now(), email: SESSION.email }); cloud.lastJson = json; } catch { /* se reintenta en el siguiente cambio */ }
+}
+const mergeById = (a = [], b = []) => { const seen = new Set(a.map(x => x.id)); return [...a, ...b.filter(x => x && x.id && !seen.has(x.id))]; };
+function applyRemote(d, merge) {
+  let r; try { r = JSON.parse(d.data); } catch { return; }
+  cloud.applying = true;
+  if (merge) {
+    state.tasks = mergeById(r.tasks, state.tasks); state.classes = mergeById(r.classes, state.classes);
+    state.name = state.name || r.name || ''; state.groupCode = state.groupCode || r.groupCode || '';
+  } else {
+    state.tasks = Array.isArray(r.tasks) ? r.tasks : []; state.classes = Array.isArray(r.classes) ? r.classes : [];
+    state.name = r.name || state.name; state.theme = r.theme || state.theme; state.groupCode = normCode(r.groupCode);
+    state.cloudAt = d.updatedAt;
+  }
+  localStorage.setItem(KEY, JSON.stringify(state));
+  cloud.lastJson = merge ? d.data : cloudPayload();
+  cloud.applying = false;
+  applyTheme();
+  if (!$('#modal').classList.contains('flex') && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName)) render();
+}
+async function cloudStart() {
+  if (!FB_ON || SESSION?.provider !== 'google') return;
+  const f = await fbInit(); if (!f) return;
+  const user = await new Promise(ok => { const un = f.auth.onAuthStateChanged(u => { un(); ok(u); }); });
+  if (!user || (user.email || '').toLowerCase() !== SESSION.email) { cloud.expired = true; return; }
+  SESSION.uid = user.uid;
+  cloud.ref = f.db.collection('users').doc(user.uid);
+  cloud.unsub = cloud.ref.onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    const d = snap.exists ? snap.data() : null;
+    if (!cloud.ready) {
+      const hasLocal = state.tasks.length || state.classes.length;
+      if (d) applyRemote(d, !!hasLocal);
+      cloud.ready = true;
+      if (!d || hasLocal) { state.cloudAt = Date.now(); save(); }
+      chatCloudStart();
+    } else if (d && d.updatedAt > (state.cloudAt || 0) && d.data !== cloud.lastJson) applyRemote(d, false);
+  }, () => {});
+}
+
+/* Chat en vivo por código de grupo */
+function chatCloudStart() {
+  cloud.chatUnsub?.(); cloud.chatUnsub = null; cloud.chatCol = null;
+  const code = normCode(state.groupCode);
+  if (!code || !fb || !SESSION.uid) return;
+  cloud.chatCol = fb.db.collection('groups').doc(code).collection('messages');
+  cloud.chatUnsub = cloud.chatCol.orderBy('at', 'desc').limit(200).onSnapshot(s => {
+    const msgs = []; s.docChanges().forEach(c => { if (c.type === 'added') msgs.push({ id: c.doc.id, ...c.doc.data(), g: code }); });
+    if (mergeChat(msgs) && tab === 'more' && sub === 'chat') chatMsgsHtml();
+  }, () => { toast('No se pudo conectar al grupo. Revisa las reglas de Firestore.', '⚠️'); });
+}
+if (!SESSION && FB_ON) fbInit().then(f => f && f.auth.getRedirectResult().then(r => r.user && finishFirebaseLogin(r.user)).catch(() => {}));
 function showLogin() {
   const ov = document.createElement('div');
   ov.className = 'fixed inset-0 z-[80] overflow-y-auto bg-ink text-slate-100 grid place-items-center p-5';
@@ -884,21 +987,20 @@ function showLogin() {
     e.preventDefault(); const email = new FormData(e.target).get('email').trim().toLowerCase();
     startSession({ email, name: email.split('@')[0].split(/[._-]/)[0].replace(/^./, c => c.toUpperCase()), picture: '', provider: 'local' });
   };
-  if (!GOOGLE_CLIENT_ID) { $('#gBtn').innerHTML = '<p class="text-xs text-amber-400">Google no configurado todavía (falta el ID de cliente). Usa tu correo.</p>'; return; }
-  const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
-  s.onload = () => { google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential, hd: ALLOWED_DOMAINS.length === 1 ? ALLOWED_DOMAINS[0] : undefined });
-    google.accounts.id.renderButton($('#gBtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280, locale: 'es' }); };
-  s.onerror = () => { $('#gBtn').innerHTML = '<p class="text-xs text-amber-400">No se pudo cargar Google. Revisa tu internet o usa tu correo.</p>'; };
-  document.head.appendChild(s);
+  if (!FB_ON) { $('#gBtn').innerHTML = '<p class="text-xs text-amber-400">Google/Firebase aún no está configurado. Usa tu correo.</p>'; return; }
+  $('#gBtn').innerHTML = `<button id="gGo" class="w-full max-w-[280px] flex items-center justify-center gap-3 rounded-full bg-white text-slate-800 font-semibold px-4 py-3 text-sm shadow hover:brightness-95 active:scale-95 transition">
+    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+    Continuar con Google</button>`;
+  $('#gGo').onclick = googleSignIn;
 }
 function accountModal() {
   openModal(`<div class="text-center space-y-3">
     <div class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden grid place-items-center text-2xl text-white font-bold">${avatarHtml(true)}</div>
     <div><p class="font-bold">${esc(state.name || SESSION.name || 'Estudiante')}</p><p class="text-sm text-slate-500 dark:text-slate-400 break-all">${esc(SESSION.email)}</p>
-    <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? '✔ Cuenta de Google' : 'Modo local (sin verificar)'}</p></div>
+    <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? '✔ Cuenta de Google · ' + (cloud.ready ? '☁️ datos sincronizados' : cloud.expired ? '⚠️ sesión en la nube vencida, vuelve a entrar' : '☁️ conectando…') : 'Modo local (sin verificar)'}</p></div>
     <div class="flex gap-2 pt-2"><button onclick="closeModal()" class="${btnG} flex-1">Cerrar</button><button id="logout" class="${btnP} flex-1">Cerrar sesión</button></div>
-    <p class="text-[11px] text-slate-500">Tus datos quedan guardados en este dispositivo para esta cuenta.</p></div>`);
-  $('#logout').onclick = () => { localStorage.removeItem('up.session'); if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect(); location.reload(); };
+    <p class="text-[11px] text-slate-500">${SESSION.provider === 'google' ? 'Tus pendientes y horario se guardan en tu cuenta y los ves en cualquier dispositivo.' : 'Tus datos quedan guardados en este dispositivo para esta cuenta.'}</p></div>`);
+  $('#logout').onclick = async () => { cloud.unsub?.(); cloud.chatUnsub?.(); try { await fb?.auth.signOut(); } catch {} localStorage.removeItem('up.session'); location.reload(); };
 }
 function avatarHtml(big) {
   return SESSION.picture ? `<img src="${esc(SESSION.picture)}" referrerpolicy="no-referrer" alt="" class="w-full h-full object-cover">` : esc((state.name || SESSION.email)[0].toUpperCase());
@@ -913,6 +1015,7 @@ else {
   if (!state.name && !localStorage.getItem('up.nameAsked')) { localStorage.setItem('up.nameAsked', '1'); nameForm(); }
   setInterval(checkReminders, 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminders(); render(); } });
+  cloudStart();
 }
 </script>
 </body>
