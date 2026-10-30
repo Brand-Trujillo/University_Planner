@@ -40,6 +40,7 @@ tailwind.config = { darkMode: 'class', theme: { extend: {
     <div class="flex items-center gap-2">
       <button id="btnBell" class="relative w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Notificaciones">🔔<span id="bellDot" class="hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400"></span></button>
       <button id="btnTheme" class="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Tema">🌓</button>
+      <button id="btnAcc" class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white font-bold overflow-hidden grid place-items-center hover:scale-105 transition" title="Mi cuenta"></button>
     </div>
   </div>
 </header>
@@ -84,7 +85,17 @@ const REMINDERS = [7, 3, 1, 0];
 const REM_LABEL = { 7: 'en 1 semana', 3: 'en 3 días', 1: 'mañana', 0: 'hoy' };
 
 /* ================== Estado / localStorage ================== */
-const KEY = 'studytask.v1';
+/* Pega aquí tu "ID de cliente" de Google Cloud (termina en .apps.googleusercontent.com). Ver README. */
+const GOOGLE_CLIENT_ID = '';
+/* Opcional: limita el acceso a dominios, p. ej. ['cun.edu.co']. Vacío = cualquier cuenta de Google. */
+const ALLOWED_DOMAINS = [];
+
+const LEGACY_KEY = 'studytask.v1';
+const SESSION = (() => { try { const s = JSON.parse(localStorage.getItem('up.session')); return s && s.email ? s : null; } catch { return null; } })();
+const KEY = SESSION ? 'up.data.' + SESSION.email.toLowerCase() : 'up.guest';
+if (SESSION && !localStorage.getItem(KEY) && localStorage.getItem(LEGACY_KEY) && !localStorage.getItem('up.legacyClaimed')) {
+  localStorage.setItem(KEY, localStorage.getItem(LEGACY_KEY)); localStorage.setItem('up.legacyClaimed', SESSION.email);
+}
 let state = (() => {
   try { return Object.assign({ tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }, JSON.parse(localStorage.getItem(KEY)) || {}); }
   catch { return { tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }; }
@@ -836,11 +847,73 @@ function bindChat() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 
+/* ================== Cuenta / Login con Google ================== */
+const domainOk = email => !ALLOWED_DOMAINS.length || ALLOWED_DOMAINS.includes(email.split('@')[1]?.toLowerCase());
+function startSession(s) {
+  if (!domainOk(s.email)) return loginMsg(`Solo se permiten cuentas de: ${ALLOWED_DOMAINS.join(', ')}`);
+  localStorage.setItem('up.session', JSON.stringify(s)); location.reload();
+}
+function loginMsg(t) { const el = $('#loginMsg'); if (el) el.textContent = t; }
+function decodeJwt(tok) {
+  const p = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  return JSON.parse(decodeURIComponent(atob(p).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join('')));
+}
+function onGoogleCredential(resp) {
+  try {
+    const u = decodeJwt(resp.credential);
+    if (!u.email || u.email_verified === false) return loginMsg('Correo de Google no verificado.');
+    startSession({ email: u.email.toLowerCase(), name: u.given_name || u.name || '', picture: u.picture || '', provider: 'google' });
+  } catch { loginMsg('No se pudo iniciar sesión con Google.'); }
+}
+function showLogin() {
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[80] overflow-y-auto bg-ink text-slate-100 grid place-items-center p-5';
+  ov.innerHTML = `<div class="w-full max-w-sm text-center space-y-5 fade-in">
+    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-4xl shadow-xl shadow-emerald-500/30">🎓</div>
+    <div><h1 class="font-title text-2xl bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">University Planner</h1><p class="text-xs text-slate-400 mt-1">By Megabyte</p></div>
+    <p class="text-sm text-slate-300">Inicia sesión con tu cuenta de Google o correo universitario para guardar tu horario y pendientes.</p>
+    <div id="gBtn" class="flex justify-center min-h-[44px]"></div>
+    <div class="flex items-center gap-3 text-xs text-slate-500"><i class="flex-1 h-px bg-slate-700"></i>o<i class="flex-1 h-px bg-slate-700"></i></div>
+    <form id="lf" class="space-y-3 text-left">
+      <input name="email" type="email" required autocomplete="email" placeholder="tu.correo@universidad.edu.co" class="${inputCls}">
+      <button class="${btnP} w-full">Continuar con mi correo</button>
+      <p class="text-[11px] text-slate-500">Sin Google: el correo no se verifica y solo identifica tus datos en este dispositivo.</p></form>
+    <p id="loginMsg" class="text-sm text-rose-400 min-h-[1.25rem]"></p></div>`;
+  document.body.appendChild(ov);
+  $('#lf').onsubmit = e => {
+    e.preventDefault(); const email = new FormData(e.target).get('email').trim().toLowerCase();
+    startSession({ email, name: email.split('@')[0].split(/[._-]/)[0].replace(/^./, c => c.toUpperCase()), picture: '', provider: 'local' });
+  };
+  if (!GOOGLE_CLIENT_ID) { $('#gBtn').innerHTML = '<p class="text-xs text-amber-400">Google no configurado todavía (falta el ID de cliente). Usa tu correo.</p>'; return; }
+  const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+  s.onload = () => { google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential, hd: ALLOWED_DOMAINS.length === 1 ? ALLOWED_DOMAINS[0] : undefined });
+    google.accounts.id.renderButton($('#gBtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280, locale: 'es' }); };
+  s.onerror = () => { $('#gBtn').innerHTML = '<p class="text-xs text-amber-400">No se pudo cargar Google. Revisa tu internet o usa tu correo.</p>'; };
+  document.head.appendChild(s);
+}
+function accountModal() {
+  openModal(`<div class="text-center space-y-3">
+    <div class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden grid place-items-center text-2xl text-white font-bold">${avatarHtml(true)}</div>
+    <div><p class="font-bold">${esc(state.name || SESSION.name || 'Estudiante')}</p><p class="text-sm text-slate-500 dark:text-slate-400 break-all">${esc(SESSION.email)}</p>
+    <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? '✔ Cuenta de Google' : 'Modo local (sin verificar)'}</p></div>
+    <div class="flex gap-2 pt-2"><button onclick="closeModal()" class="${btnG} flex-1">Cerrar</button><button id="logout" class="${btnP} flex-1">Cerrar sesión</button></div>
+    <p class="text-[11px] text-slate-500">Tus datos quedan guardados en este dispositivo para esta cuenta.</p></div>`);
+  $('#logout').onclick = () => { localStorage.removeItem('up.session'); if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect(); location.reload(); };
+}
+function avatarHtml(big) {
+  return SESSION.picture ? `<img src="${esc(SESSION.picture)}" referrerpolicy="no-referrer" alt="" class="w-full h-full object-cover">` : esc((state.name || SESSION.email)[0].toUpperCase());
+}
+
 /* ================== Init ================== */
-applyTheme(); render(); checkReminders();
-if (!state.name && !localStorage.getItem('up.nameAsked')) { localStorage.setItem('up.nameAsked', '1'); nameForm(); }
-setInterval(checkReminders, 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminders(); render(); } });
+if (!SESSION) { applyTheme(); $('#btnAcc').classList.add('hidden'); showLogin(); }
+else {
+  $('#btnAcc').innerHTML = avatarHtml(); $('#btnAcc').onclick = accountModal;
+  if (!state.name && SESSION.name) { state.name = SESSION.name; save(); }
+  applyTheme(); render(); checkReminders();
+  if (!state.name && !localStorage.getItem('up.nameAsked')) { localStorage.setItem('up.nameAsked', '1'); nameForm(); }
+  setInterval(checkReminders, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminders(); render(); } });
+}
 </script>
 </body>
 </html>
