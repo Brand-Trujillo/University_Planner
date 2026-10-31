@@ -178,31 +178,33 @@ function whenLabel(d) { return d < 0 ? `Venció hace ${-d} d` : d === 0 ? '¡HOY
 function taskCard(t) {
   const ty = TYPES[t.type] || TYPES.tarea, d = daysUntil(t.date);
   const urgent = !t.done && d <= 1;
-  return `<div class="${card} p-3.5 flex gap-3 items-start ${t.done ? 'opacity-50' : ''} ${urgent && d >= 0 ? 'ring-1 ring-emerald-500/60' : ''}">
+  return `<div data-lp-task="${t.id}" class="${card} lp p-3.5 flex gap-3 items-start ${t.done ? 'opacity-50' : ''} ${urgent && d >= 0 ? 'ring-1 ring-emerald-500/60' : ''}">
     <button data-act="toggle" data-id="${t.id}" class="mt-0.5 w-6 h-6 rounded-lg border-2 ${t.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-400'} grid place-items-center text-xs shrink-0">${t.done ? '✓' : ''}</button>
     <div class="flex-1 min-w-0">
       <div class="flex flex-wrap items-center gap-1.5 mb-1">
-        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${ty.cls}">${ty.icon} ${ty.label}</span>
+        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${ty.cls}">${ty.label}</span>
         ${t.subject ? `<span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${esc(t.subject)}</span>` : ''}
       </div>
       <p class="font-semibold text-sm ${t.done ? 'line-through' : ''}">${esc(t.title)}</p>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${fmtDate(t.date)}${t.time ? ' · ' + esc(t.time) : ''}${t.teacher ? ' · 👤 ' + esc(t.teacher) : ''}</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${fmtDate(t.date)}${t.time ? ' · ' + esc(t.time) : ''}${t.teacher ? ' · ' + esc(t.teacher) : ''}</p>
       ${t.notes ? `<p class="text-xs mt-1 text-slate-500 dark:text-slate-400">${esc(t.notes)}</p>` : ''}
     </div>
     <div class="flex flex-col items-end gap-1 shrink-0">
       ${t.done ? '' : `<span class="text-[11px] font-bold ${d < 0 ? 'text-rose-500' : d <= 1 ? 'text-emerald-500' : 'text-slate-400'}">${whenLabel(d)}</span>`}
-      <div class="flex gap-1">
-        <button data-act="edit" data-id="${t.id}" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm" aria-label="Editar">✏️</button>
-        <button data-act="del" data-id="${t.id}" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm" aria-label="Eliminar">🗑️</button>
-      </div>
     </div></div>`;
 }
 function bindTaskActions(root) {
   root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const t = state.tasks.find(x => x.id === b.dataset.id); if (!t) return;
     if (b.dataset.act === 'toggle') { t.done = !t.done; save(); render(); }
-    if (b.dataset.act === 'edit') taskForm(t);
-    if (b.dataset.act === 'del' && confirm('¿Eliminar este pendiente?')) { state.tasks = state.tasks.filter(x => x !== t); save(); render(); }
+  });
+  longPress('[data-lp-task]', el => {
+    const t = state.tasks.find(x => x.id === el.dataset.lpTask); if (!t) return;
+    actionSheet(t.title, () => taskForm(t), () => { if (confirm('¿Eliminar este pendiente?')) { state.tasks = state.tasks.filter(x => x !== t); save(); render(); } });
+  });
+  longPress('[data-lp-class]', el => {
+    const c = state.classes.find(x => x.id === el.dataset.lpClass); if (!c) return;
+    actionSheet(c.subject, () => classForm(c), () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); } });
   });
 }
 
@@ -258,7 +260,7 @@ function nameForm() {
 }
 function bindHome() { const en = $('#editName'); if (en) en.onclick = nameForm; const b = $('#bannerAdd'); if (b) b.onclick = () => taskForm(); bindTaskActions($('#view')); }
 function classRow(c) {
-  return `<div class="${card} p-3 flex items-center gap-3">
+  return `<div data-lp-class="${c.id}" class="${card} lp p-3 flex items-center gap-3">
     <div class="text-xs font-mono text-emerald-500 w-24 shrink-0">${esc(c.start)}–${esc(c.end)}</div>
     <div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">${esc(c.subject)}</p>
     <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${c.teacher ? I_USER + esc(c.teacher) : ''} ${c.room ? '<span class="ml-2">' + I_PIN + esc(c.room) + '</span>' : ''}</p></div></div>`;
@@ -400,7 +402,8 @@ function viewCal() {
       <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-slate-500">${Object.values(TYPES).map(t => `<span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full ${t.dot}"></i>${t.label}</span>`).join('')}</div></div>
     <section><div class="flex items-center justify-between mb-2"><h3 class="font-semibold">${fmtDate(cal.sel)}</h3><button id="addDay" class="${btnP} !py-1.5">+ Agregar</button></div>
       <div class="space-y-2">${dayTasks.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin eventos este día.</p>`}
-      ${dayClasses.length ? `<p class="text-xs text-slate-400 pt-2">Clases ese día</p>${dayClasses.map(classRow).join('')}` : ''}</div></section></div>`;
+      ${dayClasses.length ? `<p class="text-xs text-slate-400 pt-2">Clases ese día</p>${dayClasses.map(classRow).join('')}` : ''}
+      ${dayTasks.length || dayClasses.length ? '<p class="text-[11px] text-center text-slate-400 pt-1">Mantén presionado para editar o eliminar</p>' : ''}</div></section></div>`;
 }
 function bindCal() {
   $('#pm').onclick = () => { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } render(); };
