@@ -277,10 +277,10 @@ function viewHome() {
         const all = pending().filter(t => t.type === k), up = all.filter(t => daysUntil(t.date) >= 0), od = all.length - up.length;
         const d = up.length ? daysUntil(up[0].date) : null;
         const sub = d !== null ? `<span class="${d <= 1 ? 'text-emerald-500 font-bold' : ''}">${d === 0 ? 'Hoy' : d === 1 ? 'Mañana' : 'En ' + d + ' d'}</span>` : od ? '<span class="text-rose-500">Vencido</span>' : 'Al día';
-        return `<button data-goto="${k}" class="${card} p-2.5 active:scale-95 transition"><div class="text-2xl font-bold leading-none ${all.length ? '' : 'opacity-40'}">${all.length}</div><div class="text-[11px] font-semibold mt-1">${TYPES[k].label}${all.length === 1 ? '' : k === 'parcial' ? 'es' : 's'}</div><div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">${sub}</div></button>`; }).join('')}
+        return `<button data-goto="${k}" class="${card} p-2.5 active:scale-95 transition"><div class="text-2xl font-bold leading-none ${all.length ? '' : 'opacity-40'}">${all.length}</div><div class="text-[11px] font-semibold mt-1">${TYPES[k].label}${all.length === 1 ? '' : k === 'parcial' ? 'es' : k === 'quiz' ? 'zes' : 's'}</div><div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">${sub}</div></button>`; }).join('')}
     </div>
     <section><h3 class="font-semibold mb-2">Clases de hoy</h3>
-      ${todayClasses.length ? `<div class="space-y-2">${todayClasses.map(classRow).join('')}</div>` : `<p class="text-sm text-slate-500 ${card} p-4">No tienes clases registradas hoy.</p>`}</section>
+      ${todayClasses.length ? dayCard(dayIdx(new Date()), true) : `<p class="text-sm text-slate-500 ${card} p-4">No tienes clases registradas hoy.</p>`}</section>
     ${rest.length ? `<section><h3 class="font-semibold mb-2">Después de esto</h3><div class="space-y-2" id="homeList">${rest.map(taskCard).join('')}</div></section>` : ''}
   </div>`;
 }
