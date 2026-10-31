@@ -16,6 +16,7 @@ tailwind.config = { darkMode: 'class', theme: { extend: {
   colors: { slate850: '#1E293B', ink: '#0B1220' } } } };
 </script>
 <style>
+  .lp { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body { -webkit-tap-highlight-color: transparent; }
   .fade-in { animation: fi .25s ease both; }
   @keyframes fi { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none; } }
@@ -263,12 +264,11 @@ function dayCard(i) {
     <div class="flex items-center gap-3 p-3.5 ${today ? 'bg-gradient-to-r from-emerald-500 to-teal-700 text-white' : 'bg-slate-100 dark:bg-slate-900/70'}">
       <span class="w-12 h-12 rounded-xl grid place-items-center font-bold text-sm ${today ? 'bg-white/20 text-white' : 'bg-emerald-500 text-white'}">${n.slice(0, 3)}</span>
       <div class="flex-1"><h4 class="font-bold">${n}${today ? ' · hoy' : ''}</h4><p class="text-xs ${today ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}">${cs.length} ${cs.length === 1 ? 'clase' : 'clases'}</p></div></div>
-    <div class="divide-y divide-slate-200 dark:divide-slate-700 px-3">${cs.map(c => `<div class="flex gap-3 py-3 items-center">
+    <div class="divide-y divide-slate-200 dark:divide-slate-700 px-3">${cs.map(c => `<div data-lp-class="${c.id}" class="lp flex gap-3 py-3 items-center">
       <div class="shrink-0 w-[68px] rounded-xl border ${today ? 'border-emerald-500/60' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900/60 py-1.5 text-center font-bold text-sm leading-tight text-emerald-600 dark:text-emerald-400">${c.start}<div class="h-px w-4 bg-current opacity-60 mx-auto my-1"></div>${c.end}</div>
       <div class="flex-1 min-w-0"><p class="font-bold text-sm uppercase leading-snug">${esc(c.subject)}</p>
         ${c.teacher ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase mt-0.5">👤 ${esc(c.teacher)}</p>` : ''}
-        ${c.room ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase">📍 ${esc(c.room)}</p>` : ''}</div>
-      <div class="flex flex-col gap-1"><button data-cedit="${c.id}" class="text-xs">✏️</button><button data-cdel="${c.id}" class="text-xs">🗑️</button></div></div>`).join('')}</div></section>`;
+        ${c.room ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase">📍 ${esc(c.room)}</p>` : ''}</div></div>`).join('')}</div></section>`;
 }
 function viewWeek() {
   const subjects = directory();
@@ -279,8 +279,9 @@ function viewWeek() {
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Horario semanal</h2>
       <div class="flex gap-2"><button id="wMode" class="${btnG}">${weekMode === 'list' ? '▦ Cuadrícula' : '☰ Lista'}</button><button id="addClass" class="${btnP}">+ Clase</button></div></div>
     <div class="space-y-3">${body}</div>
+    <p class="text-[11px] text-slate-400 text-center">Mantén presionada una clase para editarla o eliminarla</p>
     <section class="pt-2"><h3 class="font-semibold mb-2">👨‍🏫 Directorio de materias y profesores</h3>
-      ${subjects.length ? `<div class="grid gap-2">${subjects.map(s => `<div class="${card} p-3"><p class="font-semibold text-sm">${esc(s.subject)}</p>
+      ${subjects.length ? `<div class="grid gap-2">${subjects.map(s => `<div data-lp-subj="${esc(s.subject)}" class="lp ${card} p-3"><p class="font-semibold text-sm">${esc(s.subject)}</p>
         <p class="text-xs text-slate-500 dark:text-slate-400">${s.teachers.length ? '👤 ' + s.teachers.map(esc).join(', ') : 'Sin profesor'}${s.rooms.length ? ' · 🚪 ' + s.rooms.map(esc).join(', ') : ''}</p></div>`).join('')}</div>`
         : `<p class="text-sm text-slate-500 ${card} p-4">Aún no hay materias. Agrega clases o importa un pantallazo desde la pestaña IA.</p>`}</section></div>`;
 }
@@ -305,11 +306,48 @@ function directory() {
   state.tasks.forEach(t => add(t.subject, t.teacher));
   return Object.values(m).map(x => ({ subject: x.subject, teachers: [...x.teachers], rooms: [...x.rooms] })).sort((a, b) => a.subject.localeCompare(b.subject));
 }
+function longPress(sel, fn) {
+  document.querySelectorAll(sel).forEach(el => {
+    let t = null, x = 0, y = 0, fired = false;
+    const stop = () => { clearTimeout(t); t = null; };
+    el.addEventListener('pointerdown', e => { fired = false; x = e.clientX; y = e.clientY; stop(); t = setTimeout(() => { fired = true; navigator.vibrate?.(30); fn(el); }, 500); });
+    el.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x, e.clientY - y) > 10) stop(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => el.addEventListener(n, stop));
+    el.addEventListener('contextmenu', e => { e.preventDefault(); if (!fired) { stop(); fired = true; fn(el); } });
+  });
+}
+function actionSheet(title, onEdit, onDel) {
+  openModal(`<h3 class="font-bold text-lg mb-3 truncate">${esc(title)}</h3><div class="space-y-2">
+    <button id="asEdit" class="${btnG} w-full">✏️ Editar</button>
+    <button id="asDel" class="${btnG} w-full !text-rose-500">🗑️ Eliminar</button>
+    <button onclick="closeModal()" class="${btnG} w-full">Cancelar</button></div>`);
+  $('#asEdit').onclick = () => { closeModal(); onEdit(); };
+  $('#asDel').onclick = () => { closeModal(); onDel(); };
+}
+function subjectForm(name) {
+  const cls = state.classes.filter(c => c.subject.toLowerCase() === name.toLowerCase());
+  const teacher = cls.map(c => c.teacher).find(Boolean) || '';
+  openModal(`<h3 class="font-bold text-lg mb-3">Editar materia</h3><form id="sf" class="space-y-3">
+    <input name="subject" required value="${esc(name)}" class="${inputCls}" placeholder="Materia">
+    <input name="teacher" value="${esc(teacher)}" class="${inputCls}" placeholder="Profesor">
+    <p class="text-[11px] text-slate-400">Se actualiza en todas las clases y pendientes de esta materia.</p>
+    <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Cancelar</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
+  $('#sf').onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), ns = f.subject.trim(), nt = f.teacher.trim(), k = name.toLowerCase();
+    state.classes.forEach(c => { if (c.subject.toLowerCase() === k) { c.subject = ns; c.teacher = nt; } });
+    state.tasks.forEach(t => { if ((t.subject || '').toLowerCase() === k) { t.subject = ns; if (nt) t.teacher = nt; } });
+    save(); closeModal(); render(); };
+}
 function bindWeek() {
   $('#wMode').onclick = () => { weekMode = weekMode === 'list' ? 'grid' : 'list'; render(); };
   $('#addClass').onclick = () => classForm();
-  document.querySelectorAll('[data-cedit]').forEach(b => b.onclick = () => classForm(state.classes.find(c => c.id === b.dataset.cedit)));
-  document.querySelectorAll('[data-cdel]').forEach(b => b.onclick = () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(c => c.id !== b.dataset.cdel); save(); render(); } });
+  longPress('[data-lp-class]', el => {
+    const c = state.classes.find(x => x.id === el.dataset.lpClass); if (!c) return;
+    actionSheet(c.subject, () => classForm(c), () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); } });
+  });
+  longPress('[data-lp-subj]', el => {
+    const name = el.dataset.lpSubj;
+    actionSheet(name, () => subjectForm(name), () => { if (confirm(`¿Eliminar todas las clases de ${name}? Los pendientes no se borran.`)) { state.classes = state.classes.filter(c => c.subject.toLowerCase() !== name.toLowerCase()); save(); render(); } });
+  });
 }
 function classForm(c = {}) {
   const subs = directory();
