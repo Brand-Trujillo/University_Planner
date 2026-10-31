@@ -255,12 +255,25 @@ function classRow(c) {
 
 /* ================== Horario semanal ================== */
 let weekMode = 'list';
+const weekDays = () => DAYS.map((n, i) => i).filter(i => state.classes.some(c => c.day === i));
+function dayCard(i) {
+  const today = i === dayIdx(new Date()), n = DAYS[i];
+  const cs = state.classes.filter(c => c.day === i).sort((a, b) => a.start.localeCompare(b.start));
+  return `<section class="rounded-2xl overflow-hidden shadow-sm ${today ? 'ring-2 ring-emerald-500 shadow-emerald-500/20' : ''} bg-white dark:bg-slate-800">
+    <div class="flex items-center gap-3 p-3.5 ${today ? 'bg-gradient-to-r from-emerald-500 to-teal-700 text-white' : 'bg-slate-100 dark:bg-slate-900/70'}">
+      <span class="w-12 h-12 rounded-xl grid place-items-center font-bold text-sm ${today ? 'bg-white/20 text-white' : 'bg-emerald-500 text-white'}">${n.slice(0, 3)}</span>
+      <div class="flex-1"><h4 class="font-bold">${n}${today ? ' · hoy' : ''}</h4><p class="text-xs ${today ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}">${cs.length} ${cs.length === 1 ? 'clase' : 'clases'}</p></div></div>
+    <div class="divide-y divide-slate-200 dark:divide-slate-700 px-3">${cs.map(c => `<div class="flex gap-3 py-3 items-center">
+      <div class="shrink-0 w-[68px] rounded-xl border ${today ? 'border-emerald-500/60' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900/60 py-1.5 text-center font-bold text-sm leading-tight text-emerald-600 dark:text-emerald-400">${c.start}<div class="h-px w-4 bg-current opacity-60 mx-auto my-1"></div>${c.end}</div>
+      <div class="flex-1 min-w-0"><p class="font-bold text-sm uppercase leading-snug">${esc(c.subject)}</p>
+        ${c.teacher ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase mt-0.5">👤 ${esc(c.teacher)}</p>` : ''}
+        ${c.room ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase">📍 ${esc(c.room)}</p>` : ''}</div>
+      <div class="flex flex-col gap-1"><button data-cedit="${c.id}" class="text-xs">✏️</button><button data-cdel="${c.id}" class="text-xs">🗑️</button></div></div>`).join('')}</div></section>`;
+}
 function viewWeek() {
   const subjects = directory();
   const body = weekMode === 'list'
-    ? DAYS.map((n, i) => { const cs = state.classes.filter(c => c.day === i).sort((a, b) => a.start.localeCompare(b.start));
-        return `<div><h4 class="text-sm font-semibold mb-1.5 ${i === dayIdx(new Date()) ? 'text-emerald-500' : ''}">${n}${i === dayIdx(new Date()) ? ' · hoy' : ''}</h4>
-          ${cs.length ? `<div class="space-y-2">${cs.map(c => `<div class="relative">${classRow(c)}<div class="absolute top-2 right-2 flex gap-1"><button data-cedit="${c.id}" class="text-xs">✏️</button><button data-cdel="${c.id}" class="text-xs">🗑️</button></div></div>`).join('')}</div>` : `<p class="text-xs text-slate-400 pl-1">Libre</p>`}</div>`; }).join('')
+    ? (weekDays().map(dayCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin clases todavía. Toca “+ Clase” o importa un pantallazo.</p>`)
     : weekGrid();
   return `<div class="space-y-4">
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Horario semanal</h2>
@@ -276,10 +289,11 @@ function weekGrid() {
   const startH = Math.min(...state.classes.map(c => parseInt(c.start))), endH = Math.max(...state.classes.map(c => Math.ceil(parseInt(c.end) + (parseInt(c.end.slice(3)) > 0 ? 1 : 0))));
   const H = 48, mins = s => parseInt(s) * 60 + parseInt(s.slice(3));
   const hours = []; for (let h = startH; h < endH; h++) hours.push(h);
-  return `<div class="${card} overflow-x-auto"><div class="min-w-[640px] grid" style="grid-template-columns:40px repeat(7,1fr)">
-    <div></div>${DAYS.map(d => `<div class="text-center text-[11px] font-semibold py-2">${d.slice(0, 3)}</div>`).join('')}
+  const wd = weekDays();
+  return `<div class="${card} overflow-x-auto"><div class="min-w-[${wd.length * 90 + 40}px] grid" style="grid-template-columns:40px repeat(${wd.length},1fr)">
+    <div></div>${wd.map(i => `<div class="text-center text-[11px] font-semibold py-2 ${i === dayIdx(new Date()) ? 'text-emerald-500' : ''}">${DAYS[i].slice(0, 3)}</div>`).join('')}
     <div>${hours.map(h => `<div style="height:${H}px" class="text-[10px] text-slate-400 text-right pr-1">${pad(h)}:00</div>`).join('')}</div>
-    ${DAYS.map((_, di) => `<div class="relative border-l border-slate-200 dark:border-slate-700" style="height:${hours.length * H}px">
+    ${wd.map(di => `<div class="relative border-l border-slate-200 dark:border-slate-700 ${di === dayIdx(new Date()) ? 'bg-emerald-500/10' : ''}" style="height:${hours.length * H}px">
       ${hours.map((_, i) => `<div class="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style="top:${i * H}px"></div>`).join('')}
       ${state.classes.filter(c => c.day === di).map(c => `<div class="absolute inset-x-0.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-1 overflow-hidden text-[10px] leading-tight" style="top:${(mins(c.start) - startH * 60) / 60 * H}px;height:${Math.max(24, (mins(c.end) - mins(c.start)) / 60 * H - 2)}px"><b>${esc(c.subject)}</b><br>${esc(c.room || '')}</div>`).join('')}
     </div>`).join('')}</div></div>`;
