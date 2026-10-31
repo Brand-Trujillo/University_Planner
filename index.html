@@ -963,12 +963,7 @@ function viewChat() {
       <div class="flex gap-2"><input id="gcIn" maxlength="30" value="${esc(state.groupCode || '')}" placeholder="codigo-del-grupo" class="${inputCls}"><button id="gcSave" class="${btnP}">${state.groupCode ? 'Cambiar' : 'Unirme'}</button></div>
       <p class="text-[11px] mt-1 ${cloud.chatUnsub ? 'text-emerald-500' : 'text-slate-400'}">${cloud.chatUnsub ? '● Conectado en vivo' : state.groupCode ? '○ Conectando…' : 'Sin grupo: el chat es solo local.'}</p>`
       : `<p class="text-xs text-slate-500 dark:text-slate-400 my-2">El chat en vivo se activa al iniciar sesión con Google (con Firebase configurado). Mientras tanto los mensajes se guardan solo en tu dispositivo.</p>`}
-    </details>
-    <details class="${card} p-3 text-sm"><summary class="cursor-pointer font-semibold">🔄 Copiar / pegar mensajes</summary>
-      <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Alternativa sin conexión: copia los mensajes de esta sala y pégalos en la app de un compañero.</p>
-      <button id="chExp" class="${btnG} w-full mb-2">📋 Copiar mensajes de esta sala</button>
-      <textarea id="chIn" rows="3" class="${inputCls} font-mono text-xs" placeholder="Pega aquí mensajes de un compañero"></textarea>
-      <div class="flex gap-2 mt-2"><button id="chImp" class="${btnP} flex-1">Importar mensajes</button><button id="chClr" class="${btnG} !text-rose-500">Limpiar sala</button></div></details></div>`;
+    </details></div>`;
 }
 function bindChat() {
   chatMsgsHtml();
@@ -986,14 +981,6 @@ function bindChat() {
     if ($('#gcIn').value.trim() && c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');
     state.groupCode = c; save(); chatCloudStart(); render();
   };
-  $('#chExp').onclick = () => copyText(JSON.stringify({ app: 'UniversityPlannerChat', chat: state.chat.filter(m => inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase()).map(({ id, room, author, text, at }) => ({ id, room, author, text, at })) }));
-  $('#chImp').onclick = () => {
-    try { const raw = $('#chIn').value, i = raw.indexOf('{'), j = raw.lastIndexOf('}'), d = JSON.parse(raw.slice(i, j + 1));
-      if (d.app !== 'UniversityPlannerChat' || !Array.isArray(d.chat)) throw new Error('Formato no reconocido');
-      const n = mergeChat(d.chat.map(m => ({ ...m, g: state.groupCode || '' }))); render(); toast(`${n} mensajes nuevos importados`, '💬'); }
-    catch (e) { toast('No se pudo importar: ' + esc(e.message), '⚠️'); }
-  };
-  $('#chClr').onclick = () => { if (confirm('¿Borrar los mensajes de esta sala en este dispositivo?')) { state.chat = state.chat.filter(m => !(inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase())); save(); chatMsgsHtml(); } };
 }
 
 /* ================== PWA ================== */
