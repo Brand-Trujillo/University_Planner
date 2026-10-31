@@ -137,11 +137,18 @@ function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classLis
 function closeModal() { $('#modal').classList.add('hidden'); $('#modal').classList.remove('flex'); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
-const NAV = [['home','🏠','Inicio'],['week','🗓️','Horario'],['cal','📅','Calendario'],['tasks','📋','Pendientes'],['more','✨','Más']];
+const ICON = p => `<svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const NAV = [
+  ['home', ICON('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>'), 'Inicio'],
+  ['week', ICON('<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 14h3M13 14h3M8 17.5h3"/>'), 'Horario'],
+  ['cal', ICON('<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><circle cx="12" cy="15" r="1.6"/>'), 'Calendario'],
+  ['tasks', ICON('<rect x="4.5" y="3.5" width="15" height="18" rx="3"/><path d="M9 3.5h6v2.5H9z"/><path d="m8.5 13 2.2 2.2 4.3-4.4"/>'), 'Pendientes'],
+  ['more', ICON('<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M17 13.5v7M13.5 17h7"/>'), 'Más'],
+];
 function renderNav() {
   $('#nav').innerHTML = NAV.map(([k, i, l]) => `
-    <button data-tab="${k}" class="py-2.5 flex flex-col items-center gap-0.5 transition ${tab === k ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}">
-      <span class="text-xl ${tab === k ? 'scale-110' : ''} transition">${i}</span>${l}</button>`).join('');
+    <button data-tab="${k}" class="py-2.5 min-w-0 flex flex-col items-center gap-1 text-[10px] font-medium tracking-tight transition ${tab === k ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}">
+      <span class="px-3 py-1 rounded-full transition ${tab === k ? 'bg-emerald-500/15' : ''}">${i}</span>${l}</button>`).join('');
   $('#fab').classList.toggle('hidden', tab === 'more');
 }
 $('#nav').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; sub = null; render(); window.scrollTo(0, 0); } });
