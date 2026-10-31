@@ -927,6 +927,21 @@ function buildICS(tasks) {
   L.push('END:VCALENDAR');
   return L.join('\r\n');
 }
+function buildClassICS() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//University Planner by Megabyte//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  const today = new Date();
+  state.classes.forEach(c => {
+    const first = iso(addD(today, (c.day - dayIdx(today) + 7) % 7));
+    L.push('BEGIN:VEVENT', `UID:class-${c.id}@universityplanner`, `DTSTAMP:${stamp}`,
+      `DTSTART:${compact(first, c.start)}`, `DTEND:${compact(first, c.end)}`, `RRULE:FREQ=WEEKLY;BYDAY=${['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][c.day]}`,
+      `SUMMARY:${icsEsc(c.subject + (c.mode === 'virtual' ? ' (Virtual)' : ''))}`,
+      `LOCATION:${icsEsc(c.room || '')}`, `DESCRIPTION:${icsEsc(c.teacher ? 'Prof. ' + c.teacher : '')}`,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc('Clase en 15 minutos: ' + c.subject)}`, 'TRIGGER:-PT15M', 'END:VALARM', 'END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+  return L.join('\r\n');
+}
 function gcalLink(t) {
   const e = eventTimes(t), ty = TYPES[t.type] || TYPES.tarea;
   const q = new URLSearchParams({ action: 'TEMPLATE', text: `${ty.label}: ${t.title}`, dates: `${e.start}/${e.end}`, details: [t.subject, t.teacher && 'Prof. ' + t.teacher, t.notes].filter(Boolean).join(' · ') });
@@ -950,6 +965,8 @@ function viewShare() {
     <section class="${card} p-4 space-y-3"><h2 class="font-bold flex items-center gap-2">${IC('cal')}<span>Google Calendar</span></h2>
       <p class="text-xs text-slate-500 dark:text-slate-400">Descarga un archivo <b>.ics</b> con tus ${list.length} pendientes próximos (incluye alertas: 1 semana, 3 días, 1 día y el mismo día) e impórtalo en Google Calendar → Configuración → Importar y exportar. O agrega cada evento con un clic:</p>
       <button id="icsBtn" class="${btnP} w-full" ${list.length ? '' : 'disabled style="opacity:.5"'}>Sincronizar con Google Calendar (.ics)</button>
+      <div class="rounded-xl bg-slate-100 dark:bg-slate-900 p-3 space-y-2"><p class="text-xs text-slate-500 dark:text-slate-400"><b>Clases con aviso:</b> descarga tu horario como eventos semanales con alerta 15 minutos antes. Funciona con la app cerrada. Ábrelo en tu calendario (importa solo una vez para no duplicar).</p>
+      <button id="icsClass" class="${btnG} w-full" ${state.classes.length ? '' : 'disabled style="opacity:.5"'}>Descargar clases (.ics)</button></div>
       <div class="space-y-1.5 max-h-56 overflow-y-auto">${list.map(t => `<a href="${gcalLink(t)}" target="_blank" rel="noopener" class="flex items-center justify-between gap-2 rounded-xl bg-slate-100 dark:bg-slate-900 px-3 py-2 text-xs hover:ring-1 hover:ring-emerald-500">
         <span class="truncate">${(TYPES[t.type] || TYPES.tarea).label}: ${esc(t.title)} · ${fmtDate(t.date)}</span><span class="text-emerald-500 shrink-0 font-semibold">+ Google</span></a>`).join('') || '<p class="text-xs text-slate-500">No hay pendientes próximos.</p>'}</div></section></div>`;
 }
@@ -964,6 +981,7 @@ function bindShare() {
     try { const r = importPayload($('#imIn').value); render(); toast(`Importado${r.from ? ' de ' + esc(r.from) : ''}: ${r.nt} pendientes y ${r.nc} clases nuevas`, '📥'); }
     catch (e) { toast('No se pudo importar: ' + esc(e.message), '⚠️'); }
   };
+  $('#icsClass').onclick = () => { download('clases-university-planner.ics', buildClassICS(), 'text/calendar'); toast('Archivo de clases descargado. Ábrelo para agregarlo a tu calendario.'); };
   $('#icsBtn').onclick = () => { download('university-planner.ics', buildICS(syncable()), 'text/calendar'); toast('Archivo .ics descargado. Ábrelo o impórtalo en Google Calendar.', '📆'); };
 }
 
