@@ -967,7 +967,7 @@ function viewChat() {
       ${FB_ON && SESSION?.provider === 'google' ? `
       <p class="text-xs text-slate-500 dark:text-slate-400 my-2">Escribe el mismo <b>código de grupo</b> que tus compañeros (ej. <i>cun-sistemas-3a</i>) y chatearán en vivo. Cualquiera que conozca el código puede leer el chat: usa uno difícil de adivinar.</p>
       <div class="flex gap-2"><input id="gcIn" maxlength="30" value="${esc(state.groupCode || '')}" placeholder="codigo-del-grupo" class="${inputCls}"><button id="gcSave" class="${btnP}">${state.groupCode ? 'Cambiar' : 'Unirme'}</button></div>
-      <p class="text-[11px] mt-1 ${cloud.chatUnsub ? 'text-emerald-500' : 'text-slate-400'}">${cloud.chatUnsub ? '● Conectado en vivo' : state.groupCode ? '○ Conectando…' : 'Sin grupo: el chat es solo local.'}</p>`
+      <p id="chatStatus" class="text-[11px] mt-1">${chatStatusHtml()}</p>`
       : `<p class="text-xs text-slate-500 dark:text-slate-400 my-2">El chat en vivo se activa al iniciar sesión con Google (con Firebase configurado). Mientras tanto los mensajes se guardan solo en tu dispositivo.</p>`}
     </details></div>`;
 }
@@ -979,7 +979,7 @@ function bindChat() {
     e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
     const m = { id: uid() + state.deviceId.slice(0, 4), room: chatRoom, g: state.groupCode || '', uid: SESSION?.uid || '', author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
     mergeChat([m]); chatBC?.postMessage({ msg: m }); inp.value = ''; chatMsgsHtml();
-    if (cloud.chatCol && state.groupCode) cloud.chatCol.doc(m.id).set({ room: m.room, author: m.author, uid: m.uid, text: m.text, at: m.at }).catch(() => toast('No se pudo enviar a tu grupo (¿sin conexión?)', '⚠️'));
+    if (cloud.chatCol && state.groupCode) cloud.chatCol.doc(m.id).set({ room: m.room, author: m.author, uid: m.uid, text: m.text, at: m.at }).catch(e => toast('No se pudo enviar al grupo (' + (e.code || 'error') + ')', '⚠️'));
   };
   const gs = $('#gcSave');
   if (gs) gs.onclick = () => {
@@ -1065,6 +1065,7 @@ async function cloudStart() {
   if (!user || (user.email || '').toLowerCase() !== SESSION.email) { cloud.expired = true; return; }
   SESSION.uid = user.uid;
   cloud.ref = f.db.collection('users').doc(user.uid);
+  chatCloudStart();
   cloud.unsub = cloud.ref.onSnapshot(snap => {
     if (snap.metadata.hasPendingWrites) return;
     const d = snap.exists ? snap.data() : null;
@@ -1073,22 +1074,32 @@ async function cloudStart() {
       if (d) applyRemote(d, !!hasLocal);
       cloud.ready = true;
       if (!d || hasLocal) { state.cloudAt = Date.now(); save(); }
-      chatCloudStart();
     } else if (d && d.updatedAt > (state.cloudAt || 0) && d.data !== cloud.lastJson) applyRemote(d, false);
   }, () => {});
 }
 
 /* Chat en vivo por código de grupo */
 function chatCloudStart() {
-  cloud.chatUnsub?.(); cloud.chatUnsub = null; cloud.chatCol = null;
+  cloud.chatUnsub?.(); cloud.chatUnsub = null; cloud.chatCol = null; cloud.chatStatus = '';
   const code = normCode(state.groupCode);
-  if (!code || !fb || !SESSION.uid) return;
+  if (!code || !fb || !SESSION.uid) return chatStatusUpdate();
+  cloud.chatStatus = 'connecting';
   cloud.chatCol = fb.db.collection('groups').doc(code).collection('messages');
   cloud.chatUnsub = cloud.chatCol.orderBy('at', 'desc').limit(200).onSnapshot(s => {
+    cloud.chatStatus = 'ok';
     const msgs = []; s.docChanges().forEach(c => { if (c.type === 'added') msgs.push({ id: c.doc.id, ...c.doc.data(), g: code }); });
     if (mergeChat(msgs) && tab === 'more' && sub === 'chat') chatMsgsHtml();
-  }, () => { toast('No se pudo conectar al grupo. Revisa las reglas de Firestore.', '⚠️'); });
+    chatStatusUpdate();
+  }, e => { cloud.chatStatus = 'error:' + (e.code || 'desconocido'); cloud.chatUnsub = null; chatStatusUpdate(); toast('Chat en vivo: ' + (e.code === 'permission-denied' ? 'Firestore rechazó el acceso. Publica las reglas de firestore.rules.' : 'error ' + (e.code || '')), '⚠️'); });
 }
+function chatStatusHtml() {
+  const s = cloud.chatStatus || '';
+  if (s === 'ok') return '<span class="text-emerald-500">● Conectado en vivo</span>';
+  if (s === 'connecting') return '<span class="text-slate-400">○ Conectando…</span>';
+  if (s.startsWith('error:')) return `<span class="text-rose-500">✕ Error (${esc(s.slice(6))}). ${s === 'error:permission-denied' ? 'Falta crear/publicar las reglas de Firestore.' : s === 'error:unavailable' ? 'Sin conexión.' : ''}</span>`;
+  return `<span class="text-slate-400">${state.groupCode ? '○ Esperando sesión…' : 'Sin grupo: el chat es solo local.'}</span>`;
+}
+function chatStatusUpdate() { const el = $('#chatStatus'); if (el) el.innerHTML = chatStatusHtml(); }
 if (!SESSION && FB_ON) fbInit().then(f => f && f.auth.getRedirectResult().then(r => r.user && finishFirebaseLogin(r.user)).catch(() => {}));
 function showLogin() {
   const ov = document.createElement('div');
