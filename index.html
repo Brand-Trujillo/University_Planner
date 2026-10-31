@@ -402,7 +402,7 @@ function viewCal() {
       <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-slate-500">${Object.values(TYPES).map(t => `<span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full ${t.dot}"></i>${t.label}</span>`).join('')}</div></div>
     <section><div class="flex items-center justify-between mb-2"><h3 class="font-semibold">${fmtDate(cal.sel)}</h3><button id="addDay" class="${btnP} !py-1.5">+ Agregar</button></div>
       <div class="space-y-2">${dayTasks.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin eventos este día.</p>`}
-      ${dayClasses.length ? `<p class="text-xs text-slate-400 pt-2">Clases ese día</p>${dayClasses.map(classRow).join('')}` : ''}
+      ${dayClasses.length ? `<div class="pt-2">${dayCard(dayIdx(parseISO(cal.sel)))}</div>` : ''}
       ${dayTasks.length || dayClasses.length ? '<p class="text-[11px] text-center text-slate-400 pt-1">Mantén presionado para editar o eliminar</p>' : ''}</div></section></div>`;
 }
 function bindCal() {
