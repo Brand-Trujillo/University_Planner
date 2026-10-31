@@ -136,6 +136,21 @@ function applyTheme() { document.documentElement.classList.toggle('dark', state.
 function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); $('#modal').classList.add('flex'); }
 function closeModal() { $('#modal').classList.add('hidden'); $('#modal').classList.remove('flex'); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+function askYes(msg, fn) {
+  openModal(`<h3 class="font-bold text-lg mb-2">${esc(msg)}</h3>
+    <div class="grid grid-cols-2 gap-2 mt-4"><button id="askNo" class="py-3 rounded-2xl bg-slate-200 dark:bg-slate-700 font-semibold">Cancelar</button><button id="askOk" class="py-3 rounded-2xl bg-emerald-600 text-white font-semibold">Aceptar</button></div>`);
+  $('#askNo').onclick = closeModal;
+  $('#askOk').onclick = () => { closeModal(); fn(); };
+}
+function askText(msg, fn) {
+  openModal(`<h3 class="font-bold text-lg mb-3">${esc(msg)}</h3>
+    <input id="askIn" autocomplete="off" class="w-full px-3 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 outline-none">
+    <div class="grid grid-cols-2 gap-2 mt-4"><button id="askNo" class="py-3 rounded-2xl bg-slate-200 dark:bg-slate-700 font-semibold">Cancelar</button><button id="askOk" class="py-3 rounded-2xl bg-emerald-600 text-white font-semibold">Aceptar</button></div>`);
+  const go = () => { const v = $('#askIn').value; closeModal(); fn(v); };
+  $('#askNo').onclick = closeModal; $('#askOk').onclick = go;
+  $('#askIn').onkeydown = e => { if (e.key === 'Enter') go(); };
+  setTimeout(() => $('#askIn')?.focus(), 50);
+}
 
 const ICON = p => `<svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const MINI = p => `<svg viewBox="0 0 24 24" class="inline-block w-3.5 h-3.5 -mt-0.5 mr-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -200,11 +215,11 @@ function bindTaskActions(root) {
   });
   longPress('[data-lp-task]', el => {
     const t = state.tasks.find(x => x.id === el.dataset.lpTask); if (!t) return;
-    actionSheet(t.title, () => taskForm(t), () => { if (confirm('¿Eliminar este pendiente?')) { state.tasks = state.tasks.filter(x => x !== t); save(); render(); } });
+    actionSheet(t.title, () => taskForm(t), () => askYes('¿Eliminar este pendiente?', () => { state.tasks = state.tasks.filter(x => x !== t); save(); render(); }));
   });
   longPress('[data-lp-class]', el => {
     const c = state.classes.find(x => x.id === el.dataset.lpClass); if (!c) return;
-    actionSheet(c.subject, () => classForm(c), () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); } });
+    actionSheet(c.subject, () => classForm(c), () => askYes('¿Eliminar clase?', () => { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); }));
   });
 }
 
@@ -363,11 +378,11 @@ function bindWeek() {
   document.querySelectorAll('[data-wf]').forEach(b => b.onclick = () => { weekFilter = b.dataset.wf; render(); });
   longPress('[data-lp-class]', el => {
     const c = state.classes.find(x => x.id === el.dataset.lpClass); if (!c) return;
-    actionSheet(c.subject, () => classForm(c), () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); } });
+    actionSheet(c.subject, () => classForm(c), () => askYes('¿Eliminar clase?', () => { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); }));
   });
   longPress('[data-lp-subj]', el => {
     const name = el.dataset.lpSubj;
-    actionSheet(name, () => subjectForm(name), () => { if (confirm(`¿Eliminar todas las clases de ${name}? Los pendientes no se borran.`)) { state.classes = state.classes.filter(c => c.subject.toLowerCase() !== name.toLowerCase()); save(); render(); } });
+    actionSheet(name, () => subjectForm(name), () => askYes(`¿Eliminar todas las clases de ${name}? Los pendientes no se borran.`, () => { state.classes = state.classes.filter(c => c.subject.toLowerCase() !== name.toLowerCase()); save(); render(); }));
   });
 }
 function classForm(c = {}) {
@@ -710,7 +725,7 @@ function bindAI() {
   bindImgRes();
   $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })); a.download = 'studytask-backup.json'; a.click(); };
   $('#imp').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { state = Object.assign(state, JSON.parse(t)); save(); render(); toast('Datos importados', '💾'); } catch { toast('Archivo inválido', '⚠️'); } }); };
-  $('#wipe').onclick = () => { if (confirm('¿Borrar todos los datos?')) { state.tasks = []; state.classes = []; state.notifs = []; save(); render(); } };
+  $('#wipe').onclick = () => askYes('¿Borrar todos los datos?', () => { state.tasks = []; state.classes = []; state.notifs = []; save(); render(); });
 }
 function bindAIPrev() {
   const s = $('#aiSave'); if (!s) return;
@@ -992,13 +1007,15 @@ function bindChat() {
   });
   const ac = $('#addCode');
   if (ac) ac.onclick = () => {
-    const c = normCode(prompt('Código del chat (el mismo que tus compañeros, ej. cun-sistemas-3a):') || '');
-    if (!c) return;
-    if (c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');
-    if (!state.codes.includes(c)) state.codes.push(c);
-    state.groupCode = c; ensureNotifPermission(); save(); chatCloudStart(); render();
+    askText('Código del chat (ej. cun-sistemas-3a)', v => {
+      const c = normCode(v || '');
+      if (!c) return;
+      if (c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');
+      if (!state.codes.includes(c)) state.codes.push(c);
+      state.groupCode = c; ensureNotifPermission(); save(); chatCloudStart(); render();
+    });
   };
-  $('#clrRoom').onclick = () => { if (!confirm('¿Limpiar los mensajes de este chat en este dispositivo?')) return; (state.chatClear ??= {})[state.groupCode || ''] = new Date().toISOString(); state.chat = state.chat.filter(m => !inGroup(m)); save(); chatMsgsHtml(); };
+  $('#clrRoom').onclick = () => askYes('¿Limpiar los mensajes de este chat en este dispositivo?', () => { (state.chatClear ??= {})[state.groupCode || ''] = new Date().toISOString(); state.chat = state.chat.filter(m => !inGroup(m)); save(); chatMsgsHtml(); });
   $('#chatForm').onsubmit = e => {
     e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
     const m = { id: uid() + state.deviceId.slice(0, 4), room: 'General', g: state.groupCode || '', uid: SESSION?.uid || '', author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
