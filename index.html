@@ -117,7 +117,7 @@ const save = () => {
   localStorage.setItem(KEY, JSON.stringify(state));
   if (cloud.ready && !cloud.applying) { clearTimeout(cloud.timer); cloud.timer = setTimeout(cloudPush, 1500); }
 };
-state.chat ??= []; state.rooms ??= []; state.deviceId ||= uid();
+state.chat ??= []; state.rooms ??= []; state.hiddenRooms ??= []; state.deviceId ||= uid();
 state.pomo ??= { mode: '25', phase: 'focus', running: false, endsAt: 0, left: 25 * 60, count: 0, day: iso(new Date()) };
 
 let tab = 'home';
@@ -939,13 +939,15 @@ function bindShare() {
 
 /* ================== Chat por materia / grupo ================== */
 let chatRoom = 'General';
-const allRooms = () => { const seen = new Set(), out = []; ['General', ...directory().map(s => s.subject), ...state.rooms].forEach(r => { const k = r.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(r); } }); return out; };
+const isHidden = r => state.hiddenRooms.includes(r.toLowerCase());
+const allRooms = () => { const seen = new Set(), out = []; ['General', ...directory().map(s => s.subject), ...state.rooms].forEach(r => { const k = r.toLowerCase(); if (!seen.has(k) && (k === 'general' || !isHidden(r))) { seen.add(k); out.push(r); } }); return out; };
 const chatBC = 'BroadcastChannel' in window ? new BroadcastChannel('up-chat') : null;
 function mergeChat(msgs) {
   const have = new Set(state.chat.map(m => m.id)); let n = 0;
   msgs.forEach(m => {
     if (!m || typeof m.id !== 'string' || typeof m.text !== 'string' || have.has(m.id) || isNaN(Date.parse(m.at))) return;
     const room = s60(m.room, 40) || 'General';
+    if (isHidden(room) && room.toLowerCase() !== 'general') return;
     if (m.at <= (state.chatClear?.[(s60(m.g, 40)) + '|' + room.toLowerCase()] || '')) return;
     if (!allRooms().some(r => r.toLowerCase() === room.toLowerCase())) state.rooms.push(room);
     state.chat.push({ id: m.id, room, g: s60(m.g, 40), uid: s60(m.uid, 40), author: s60(m.author, 30) || 'Anónimo', dev: s60(m.dev, 20), text: s60(m.text, 1000), at: new Date(m.at).toISOString() }); have.add(m.id); n++;
@@ -972,6 +974,7 @@ function viewChat() {
   return `<div class="space-y-3">
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">💬 Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar sala</button><button id="addRoom" class="${btnG}">+ Grupo</button></div></div>
     <div class="flex gap-2 overflow-x-auto pb-1">${rooms.map(r => `<button data-room="${esc(r)}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${r.toLowerCase() === chatRoom.toLowerCase() ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(r)}</button>`).join('')}</div>
+    <p class="text-[11px] text-slate-400 text-center">Mantén presionado un grupo para eliminarlo</p>
     <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
     <form id="chatForm" class="flex gap-2"><input id="chatInput" maxlength="1000" autocomplete="off" placeholder="Mensaje para ${esc(chatRoom)}…" class="${inputCls}"><button class="${btnP}">Enviar</button></form>
     <details class="${card} p-3 text-sm" ${FB_ON && !state.groupCode ? 'open' : ''}><summary class="cursor-pointer font-semibold">☁️ Grupo en vivo ${state.groupCode ? '· ' + esc(state.groupCode) : ''}</summary>
@@ -984,8 +987,22 @@ function viewChat() {
 }
 function bindChat() {
   chatMsgsHtml();
-  document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { chatRoom = b.dataset.room; render(); });
-  $('#addRoom').onclick = () => { const n = (prompt('Nombre del grupo de estudio:') || '').trim().slice(0, 40); if (!n) return; if (!allRooms().some(r => r.toLowerCase() === n.toLowerCase())) state.rooms.push(n); chatRoom = n; save(); render(); };
+  document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { if (b.dataset.lpFired) { delete b.dataset.lpFired; return; } chatRoom = b.dataset.room; render(); });
+  longPress('[data-room]', el => {
+    const r = el.dataset.room; el.dataset.lpFired = '1';
+    if (r.toLowerCase() === 'general') return toast('La sala General no se puede eliminar', 'ℹ️');
+    openModal(`<h3 class="font-bold text-lg mb-1 truncate">${esc(r)}</h3><p class="text-sm text-slate-500 mb-3">Se quitará de tu lista y se borrarán sus mensajes de este dispositivo. No afecta a tus compañeros.</p>
+      <div class="space-y-2"><button id="rmRoom" class="${btnG} w-full !text-rose-500">Eliminar grupo</button><button onclick="closeModal()" class="${btnG} w-full">Cancelar</button></div>`);
+    $('#rmRoom').onclick = () => {
+      const k = r.toLowerCase();
+      if (!state.hiddenRooms.includes(k)) state.hiddenRooms.push(k);
+      state.rooms = state.rooms.filter(x => x.toLowerCase() !== k);
+      state.chat = state.chat.filter(m => m.room.toLowerCase() !== k);
+      if (chatRoom.toLowerCase() === k) chatRoom = 'General';
+      save(); closeModal(); render();
+    };
+  });
+  $('#addRoom').onclick = () => { const n = (prompt('Nombre del grupo de estudio:') || '').trim().slice(0, 40); if (!n) return; state.hiddenRooms = state.hiddenRooms.filter(x => x !== n.toLowerCase()); if (!allRooms().some(r => r.toLowerCase() === n.toLowerCase())) state.rooms.push(n); chatRoom = n; save(); render(); };
   $('#clrRoom').onclick = () => { if (!confirm(`¿Limpiar los mensajes de "${chatRoom}" en este dispositivo?`)) return; (state.chatClear ??= {})[(state.groupCode || '') + '|' + chatRoom.toLowerCase()] = new Date().toISOString(); state.chat = state.chat.filter(m => !(inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase())); save(); chatMsgsHtml(); };
   $('#chatForm').onsubmit = e => {
     e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
@@ -997,7 +1014,7 @@ function bindChat() {
   if (gs) gs.onclick = () => {
     const c = normCode($('#gcIn').value);
     if ($('#gcIn').value.trim() && c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');
-    state.groupCode = c; save(); chatCloudStart(); render();
+    state.groupCode = c; cloud.chatSeen = false; ensureNotifPermission(); save(); chatCloudStart(); render();
   };
 }
 
@@ -1100,9 +1117,20 @@ function chatCloudStart() {
   cloud.chatUnsub = cloud.chatCol.orderBy('at', 'desc').limit(200).onSnapshot(s => {
     cloud.chatStatus = 'ok';
     const msgs = []; s.docChanges().forEach(c => { if (c.type === 'added') msgs.push({ id: c.doc.id, ...c.doc.data(), g: code }); });
+    const known = new Set(state.chat.map(m => m.id)), first = !cloud.chatSeen;
+    const fresh = first ? [] : msgs.filter(m => !known.has(m.id) && m.uid !== SESSION.uid && !s.metadata.hasPendingWrites);
+    cloud.chatSeen = true;
     if (mergeChat(msgs) && tab === 'more' && sub === 'chat') chatMsgsHtml();
+    fresh.forEach(chatNotify);
     chatStatusUpdate();
   }, e => { cloud.chatStatus = 'error:' + (e.code || 'desconocido'); cloud.chatUnsub = null; chatStatusUpdate(); toast('Chat en vivo: ' + (e.code === 'permission-denied' ? 'Firestore rechazó el acceso. Publica las reglas de firestore.rules.' : 'error ' + (e.code || '')), '⚠️'); });
+}
+function chatNotify(m) {
+  const room = s60(m.room, 40) || 'General';
+  if (isHidden(room) && room.toLowerCase() !== 'general') return;
+  const viewing = !document.hidden && tab === 'more' && sub === 'chat' && chatRoom.toLowerCase() === room.toLowerCase();
+  if (viewing) return;
+  notify(`${s60(m.author, 30) || 'Alguien'} · ${room}`, s60(m.text, 120));
 }
 function chatStatusHtml() {
   const s = cloud.chatStatus || '';
