@@ -242,9 +242,12 @@ function viewHome() {
     <div><h2 class="text-2xl font-bold">${greet}${state.name ? ', ' + esc(state.name) : ''} 👋 <button id="editName" class="text-sm align-middle opacity-60 hover:opacity-100" aria-label="Cambiar nombre">✏️</button></h2>
       <p class="text-sm text-slate-500 dark:text-slate-400">${DAYS[dayIdx(new Date())]}, ${new Date().getDate()} de ${MONTHS[new Date().getMonth()]} · ${todayCount ? `<b class="text-emerald-500">${todayCount} para hoy</b>` : 'nada para hoy'}</p></div>
     ${banner}${hero}
-    <div class="grid grid-cols-3 gap-3 text-center">
-      ${['parcial','quiz','trabajo'].map(k => { const n = list.filter(t => t.type === k && daysUntil(t.date) <= 14).length;
-        return `<div class="${card} p-3"><div class="text-xl">${TYPES[k].icon}</div><div class="text-xl font-bold">${n}</div><div class="text-[11px] text-slate-500">${TYPES[k].label}${k === 'quiz' ? 'zes' : 'es' === 'x' ? '' : k === 'parcial' ? 'es' : 's'} · 14d</div></div>`; }).join('')}
+    <div class="grid grid-cols-4 gap-2 text-center">
+      ${Object.keys(TYPES).map(k => {
+        const all = pending().filter(t => t.type === k), up = all.filter(t => daysUntil(t.date) >= 0), od = all.length - up.length;
+        const d = up.length ? daysUntil(up[0].date) : null;
+        const sub = d !== null ? `<span class="${d <= 1 ? 'text-emerald-500 font-bold' : ''}">${d === 0 ? 'Hoy' : d === 1 ? 'Mañana' : 'En ' + d + ' d'}</span>` : od ? '<span class="text-rose-500">Vencido</span>' : 'Al día';
+        return `<button data-goto="${k}" class="${card} p-2.5 active:scale-95 transition"><div class="text-2xl font-bold leading-none ${all.length ? '' : 'opacity-40'}">${all.length}</div><div class="text-[11px] font-semibold mt-1">${TYPES[k].label}${all.length === 1 ? '' : k === 'parcial' ? 'es' : 's'}</div><div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">${sub}</div></button>`; }).join('')}
     </div>
     <section><h3 class="font-semibold mb-2">Clases de hoy</h3>
       ${todayClasses.length ? `<div class="space-y-2">${todayClasses.map(classRow).join('')}</div>` : `<p class="text-sm text-slate-500 ${card} p-4">No tienes clases registradas hoy.</p>`}</section>
@@ -258,7 +261,9 @@ function nameForm() {
     <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Ahora no</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
   $('#nf').onsubmit = e => { e.preventDefault(); state.name = new FormData(e.target).get('name').trim(); save(); closeModal(); render(); };
 }
-function bindHome() { const en = $('#editName'); if (en) en.onclick = nameForm; const b = $('#bannerAdd'); if (b) b.onclick = () => taskForm(); bindTaskActions($('#view')); }
+function bindHome() { const en = $('#editName'); if (en) en.onclick = nameForm; const b = $('#bannerAdd'); if (b) b.onclick = () => taskForm();
+  document.querySelectorAll('[data-goto]').forEach(g => g.onclick = () => { filter = g.dataset.goto; tab = 'tasks'; render(); window.scrollTo(0, 0); });
+  bindTaskActions($('#view')); }
 function classRow(c) {
   return `<div data-lp-class="${c.id}" class="${card} lp p-3 flex items-center gap-3">
     <div class="text-xs font-mono text-emerald-500 w-24 shrink-0">${esc(c.start)}–${esc(c.end)}</div>
@@ -267,29 +272,31 @@ function classRow(c) {
 }
 
 /* ================== Horario semanal ================== */
-let weekMode = 'list';
-const weekDays = () => DAYS.map((n, i) => i).filter(i => state.classes.some(c => c.day === i));
-function dayCard(i) {
+let weekMode = 'list', weekFilter = 'all';
+const wClasses = () => weekFilter === 'all' ? state.classes : state.classes.filter(c => (c.mode || 'presencial') === weekFilter);
+const weekDays = () => DAYS.map((n, i) => i).filter(i => wClasses().some(c => c.day === i));
+function dayCard(i, everything) {
   const today = i === dayIdx(new Date()), n = DAYS[i];
-  const cs = state.classes.filter(c => c.day === i).sort((a, b) => a.start.localeCompare(b.start));
+  const cs = (everything ? state.classes : wClasses()).filter(c => c.day === i).sort((a, b) => a.start.localeCompare(b.start));
   return `<section class="rounded-2xl overflow-hidden shadow-sm ${today ? 'ring-2 ring-emerald-500 shadow-emerald-500/20' : ''} bg-white dark:bg-slate-800">
     <div class="flex items-center gap-3 p-3.5 ${today ? 'bg-gradient-to-r from-emerald-500 to-teal-700 text-white' : 'bg-slate-100 dark:bg-slate-900/70'}">
       <span class="w-12 h-12 rounded-xl grid place-items-center font-bold text-sm ${today ? 'bg-white/20 text-white' : 'bg-emerald-500 text-white'}">${n.slice(0, 3)}</span>
       <div class="flex-1"><h4 class="font-bold">${n}${today ? ' · hoy' : ''}</h4><p class="text-xs ${today ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}">${cs.length} ${cs.length === 1 ? 'clase' : 'clases'}</p></div></div>
     <div class="divide-y divide-slate-200 dark:divide-slate-700 px-3">${cs.map(c => `<div data-lp-class="${c.id}" class="lp flex gap-3 py-3 items-center">
       <div class="shrink-0 w-[68px] rounded-xl border ${today ? 'border-emerald-500/60' : 'border-slate-200 dark:border-slate-700'} bg-slate-50 dark:bg-slate-900/60 py-1.5 text-center font-bold text-sm leading-tight text-emerald-600 dark:text-emerald-400">${c.start}<div class="h-px w-4 bg-current opacity-60 mx-auto my-1"></div>${c.end}</div>
-      <div class="flex-1 min-w-0"><p class="font-bold text-sm uppercase leading-snug">${esc(c.subject)}</p>
+      <div class="flex-1 min-w-0"><p class="font-bold text-sm uppercase leading-snug">${esc(c.subject)}${c.mode === 'virtual' ? ' <span class="align-middle text-[10px] normal-case font-semibold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-500">Virtual</span>' : ''}</p>
         ${c.teacher ? `<p class="text-xs text-slate-500 dark:text-slate-400         uppercase mt-0.5">${I_USER}${esc(c.teacher)}</p>` : ''}
                 ${c.room ? `<p class="text-xs text-slate-500 dark:text-slate-400 uppercase">${I_PIN}${esc(c.room)}</p>` : ''}</div></div>`).join('')}</div></section>`;
 }
 function viewWeek() {
   const subjects = directory();
   const body = weekMode === 'list'
-    ? (weekDays().map(dayCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin clases todavía. Toca “+ Clase” o importa un pantallazo.</p>`)
+    ? (weekDays().map(i => dayCard(i)).join('') || `<p class="text-sm text-slate-500 ${card} p-4">${state.classes.length ? 'No hay clases ' + weekFilter + 's.' : 'Sin clases todavía. Toca “+ Clase” o importa un pantallazo.'}</p>`)
     : weekGrid();
   return `<div class="space-y-4">
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Horario semanal</h2>
       <div class="flex gap-2"><button id="wMode" class="${btnG}">${weekMode === 'list' ? '▦ Cuadrícula' : '☰ Lista'}</button><button id="addClass" class="${btnP}">+ Clase</button></div></div>
+    <div class="flex gap-2">${[['all', 'Todas'], ['presencial', 'Presencial'], ['virtual', 'Virtual']].map(([k, l]) => `<button data-wf="${k}" class="flex-1 rounded-xl py-2 text-sm font-semibold transition ${weekFilter === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${l}</button>`).join('')}</div>
     <div class="space-y-3">${body}</div>
     <p class="text-[11px] text-slate-400 text-center">Mantén presionada una clase para editarla o eliminarla</p>
     <section class="pt-2"><h3 class="font-semibold mb-2">Directorio de materias y profesores</h3>
@@ -298,8 +305,9 @@ function viewWeek() {
         : `<p class="text-sm text-slate-500 ${card} p-4">Aún no hay materias. Agrega clases o importa un pantallazo desde la pestaña IA.</p>`}</section></div>`;
 }
 function weekGrid() {
-  if (!state.classes.length) return `<p class="text-sm text-slate-500 ${card} p-4">Sin clases todavía.</p>`;
-  const startH = Math.min(...state.classes.map(c => parseInt(c.start))), endH = Math.max(...state.classes.map(c => Math.ceil(parseInt(c.end) + (parseInt(c.end.slice(3)) > 0 ? 1 : 0))));
+  if (!wClasses().length) return `<p class="text-sm text-slate-500 ${card} p-4">Sin clases.</p>`;
+  const WC = wClasses();
+  const startH = Math.min(...WC.map(c => parseInt(c.start))), endH = Math.max(...WC.map(c => Math.ceil(parseInt(c.end) + (parseInt(c.end.slice(3)) > 0 ? 1 : 0))));
   const H = 48, mins = s => parseInt(s) * 60 + parseInt(s.slice(3));
   const hours = []; for (let h = startH; h < endH; h++) hours.push(h);
   const wd = weekDays();
@@ -308,7 +316,7 @@ function weekGrid() {
     <div>${hours.map(h => `<div style="height:${H}px" class="text-[10px] text-slate-400 text-right pr-1">${pad(h)}:00</div>`).join('')}</div>
     ${wd.map(di => `<div class="relative border-l border-slate-200 dark:border-slate-700 ${di === dayIdx(new Date()) ? 'bg-emerald-500/10' : ''}" style="height:${hours.length * H}px">
       ${hours.map((_, i) => `<div class="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style="top:${i * H}px"></div>`).join('')}
-      ${state.classes.filter(c => c.day === di).map(c => `<div class="absolute inset-x-0.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-1 overflow-hidden text-[10px] leading-tight" style="top:${(mins(c.start) - startH * 60) / 60 * H}px;height:${Math.max(24, (mins(c.end) - mins(c.start)) / 60 * H - 2)}px"><b>${esc(c.subject)}</b><br>${esc(c.room || '')}</div>`).join('')}
+      ${WC.filter(c => c.day === di).map(c => `<div class="absolute inset-x-0.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-1 overflow-hidden text-[10px] leading-tight" style="top:${(mins(c.start) - startH * 60) / 60 * H}px;height:${Math.max(24, (mins(c.end) - mins(c.start)) / 60 * H - 2)}px"><b>${esc(c.subject)}</b><br>${esc(c.room || '')}</div>`).join('')}
     </div>`).join('')}</div></div>`;
 }
 function directory() {
@@ -352,6 +360,7 @@ function subjectForm(name) {
 function bindWeek() {
   $('#wMode').onclick = () => { weekMode = weekMode === 'list' ? 'grid' : 'list'; render(); };
   $('#addClass').onclick = () => classForm();
+  document.querySelectorAll('[data-wf]').forEach(b => b.onclick = () => { weekFilter = b.dataset.wf; render(); });
   longPress('[data-lp-class]', el => {
     const c = state.classes.find(x => x.id === el.dataset.lpClass); if (!c) return;
     actionSheet(c.subject, () => classForm(c), () => { if (confirm('¿Eliminar clase?')) { state.classes = state.classes.filter(x => x.id !== c.id); save(); render(); } });
@@ -369,12 +378,13 @@ function classForm(c = {}) {
       <datalist id="dlSub">${subs.map(s => `<option value="${esc(s.subject)}">`).join('')}</datalist>
       <input name="teacher" placeholder="Profesor" value="${esc(c.teacher)}" class="${inputCls}">
       <input name="room" placeholder="Salón" value="${esc(c.room)}" class="${inputCls}">
+      <div class="grid grid-cols-2 gap-2">${[['presencial', 'Presencial'], ['virtual', 'Virtual']].map(([k, l]) => `<label class="cursor-pointer"><input type="radio" name="mode" value="${k}" class="peer sr-only" ${(c.mode || 'presencial') === k ? 'checked' : ''}><div class="text-center rounded-xl py-2 text-sm font-semibold bg-slate-100 dark:bg-slate-900 peer-checked:bg-emerald-500 peer-checked:text-white transition">${l}</div></label>`).join('')}</div>
       <select name="day" class="${inputCls}">${DAYS.map((d, i) => `<option value="${i}" ${c.day === i ? 'selected' : ''}>${d}</option>`).join('')}</select>
       <div class="grid grid-cols-2 gap-3"><label class="text-xs">Inicio<input type="time" name="start" required value="${c.start || '08:00'}" class="${inputCls}"></label>
       <label class="text-xs">Fin<input type="time" name="end" required value="${c.end || '10:00'}" class="${inputCls}"></label></div>
       <div class="flex gap-2 pt-1"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Cancelar</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
   $('#cf').onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
-    const o = { id: c.id || uid(), subject: f.subject.trim(), teacher: f.teacher.trim(), room: f.room.trim(), day: +f.day, start: f.start, end: f.end };
+    const o = { id: c.id || uid(), subject: f.subject.trim(), teacher: f.teacher.trim(), room: f.room.trim(), mode: f.mode === 'virtual' ? 'virtual' : 'presencial', day: +f.day, start: f.start, end: f.end };
     if (c.id) state.classes = state.classes.map(x => x.id === c.id ? o : x); else state.classes.push(o);
     save(); closeModal(); render(); };
 }
@@ -402,7 +412,7 @@ function viewCal() {
       <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-slate-500">${Object.values(TYPES).map(t => `<span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full ${t.dot}"></i>${t.label}</span>`).join('')}</div></div>
     <section><div class="flex items-center justify-between mb-2"><h3 class="font-semibold">${fmtDate(cal.sel)}</h3><button id="addDay" class="${btnP} !py-1.5">+ Agregar</button></div>
       <div class="space-y-2">${dayTasks.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-4">Sin eventos este día.</p>`}
-      ${dayClasses.length ? `<div class="pt-2">${dayCard(dayIdx(parseISO(cal.sel)))}</div>` : ''}
+      ${dayClasses.length ? `<div class="pt-2">${dayCard(dayIdx(parseISO(cal.sel)), true)}</div>` : ''}
       ${dayTasks.length || dayClasses.length ? '<p class="text-[11px] text-center text-slate-400 pt-1">Mantén presionado para editar o eliminar</p>' : ''}</div></section></div>`;
 }
 function bindCal() {
@@ -856,7 +866,7 @@ function importPayload(raw) {
   });
   (Array.isArray(d.classes) ? d.classes : []).forEach(x => {
     if (!x || typeof x.subject !== 'string' || !Number.isInteger(x.day) || x.day < 0 || x.day > 6 || !/^\d{2}:\d{2}$/.test(x.start || '') || !/^\d{2}:\d{2}$/.test(x.end || '')) return;
-    const c = { id: uid(), subject: s60(x.subject), teacher: s60(x.teacher), room: s60(x.room, 40), day: x.day, start: x.start, end: x.end };
+    const c = { id: uid(), subject: s60(x.subject), teacher: s60(x.teacher), room: s60(x.room, 40), mode: x.mode === 'virtual' ? 'virtual' : 'presencial', day: x.day, start: x.start, end: x.end };
     if (!c.subject || haveC.has(classKey(c))) return;
     haveC.add(classKey(c)); state.classes.push(c); nc++;
   });
@@ -936,6 +946,7 @@ function mergeChat(msgs) {
   msgs.forEach(m => {
     if (!m || typeof m.id !== 'string' || typeof m.text !== 'string' || have.has(m.id) || isNaN(Date.parse(m.at))) return;
     const room = s60(m.room, 40) || 'General';
+    if (m.at <= (state.chatClear?.[(s60(m.g, 40)) + '|' + room.toLowerCase()] || '')) return;
     if (!allRooms().some(r => r.toLowerCase() === room.toLowerCase())) state.rooms.push(room);
     state.chat.push({ id: m.id, room, g: s60(m.g, 40), uid: s60(m.uid, 40), author: s60(m.author, 30) || 'Anónimo', dev: s60(m.dev, 20), text: s60(m.text, 1000), at: new Date(m.at).toISOString() }); have.add(m.id); n++;
   });
@@ -959,7 +970,7 @@ function chatMsgsHtml() {
 function viewChat() {
   const rooms = allRooms(); if (!rooms.some(r => r.toLowerCase() === chatRoom.toLowerCase())) chatRoom = 'General';
   return `<div class="space-y-3">
-    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">💬 Chat de estudio</h2><button id="addRoom" class="${btnG}">+ Grupo</button></div>
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">💬 Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar sala</button><button id="addRoom" class="${btnG}">+ Grupo</button></div></div>
     <div class="flex gap-2 overflow-x-auto pb-1">${rooms.map(r => `<button data-room="${esc(r)}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${r.toLowerCase() === chatRoom.toLowerCase() ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(r)}</button>`).join('')}</div>
     <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
     <form id="chatForm" class="flex gap-2"><input id="chatInput" maxlength="1000" autocomplete="off" placeholder="Mensaje para ${esc(chatRoom)}…" class="${inputCls}"><button class="${btnP}">Enviar</button></form>
@@ -975,6 +986,7 @@ function bindChat() {
   chatMsgsHtml();
   document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { chatRoom = b.dataset.room; render(); });
   $('#addRoom').onclick = () => { const n = (prompt('Nombre del grupo de estudio:') || '').trim().slice(0, 40); if (!n) return; if (!allRooms().some(r => r.toLowerCase() === n.toLowerCase())) state.rooms.push(n); chatRoom = n; save(); render(); };
+  $('#clrRoom').onclick = () => { if (!confirm(`¿Limpiar los mensajes de "${chatRoom}" en este dispositivo?`)) return; (state.chatClear ??= {})[(state.groupCode || '') + '|' + chatRoom.toLowerCase()] = new Date().toISOString(); state.chat = state.chat.filter(m => !(inGroup(m) && m.room.toLowerCase() === chatRoom.toLowerCase())); save(); chatMsgsHtml(); };
   $('#chatForm').onsubmit = e => {
     e.preventDefault(); const inp = $('#chatInput'), text = inp.value.trim(); if (!text) return;
     const m = { id: uid() + state.deviceId.slice(0, 4), room: chatRoom, g: state.groupCode || '', uid: SESSION?.uid || '', author: state.name || 'Anónimo', dev: state.deviceId, text, at: new Date().toISOString() };
