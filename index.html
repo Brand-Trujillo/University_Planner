@@ -32,15 +32,15 @@ tailwind.config = { darkMode: 'class', theme: { extend: {
 <header class="sticky top-0 z-40 backdrop-blur bg-white/80 dark:bg-ink/80 border-b border-slate-200 dark:border-slate-800">
   <div class="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-white shadow-lg shadow-emerald-500/30">🎓</div>
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-white shadow-lg shadow-emerald-500/30"><svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"/><path d="M22 9v6"/></svg></div>
       <div>
         <h1 class="font-title text-base leading-tight bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text         text-transparent">University Planner</h1>
                 <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">By Megabyte</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button id="btnBell" class="relative w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Notificaciones">🔔<span id="bellDot" class="hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400"></span></button>
-      <button id="btnTheme" class="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Tema">🌓</button>
+      <button id="btnBell" class="relative w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Notificaciones"><svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span id="bellDot" class="hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400"></span></button>
+      <button id="btnTheme" class="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate850 grid place-items-center hover:scale-105 transition" title="Tema"><svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg></button>
       <button id="btnAcc" class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white font-bold overflow-hidden grid place-items-center hover:scale-105 transition" title="Mi cuenta"></button>
     </div>
   </div>
@@ -77,10 +77,10 @@ const dayIdx = d => (d.getDay() + 6) % 7;
 const fmtDate = s => { const d = parseISO(s); return `${DAYS[dayIdx(d)].slice(0,3)} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`; };
 
 const TYPES = {
-  parcial: { label: 'Parcial', icon: '📝', cls: 'bg-rose-500/15 text-rose-500 dark:text-rose-300', dot: 'bg-rose-500' },
-  quiz:    { label: 'Quiz',    icon: '⚡', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300', dot: 'bg-amber-400' },
-  trabajo: { label: 'Trabajo', icon: '📦', cls: 'bg-sky-500/15 text-sky-600 dark:text-sky-300', dot: 'bg-sky-400' },
-  tarea:   { label: 'Tarea',   icon: '✅', cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300', dot: 'bg-emerald-400' },
+  parcial: { label: 'Parcial', icon: '', cls: 'bg-rose-500/15 text-rose-500 dark:text-rose-300', dot: 'bg-rose-500' },
+  quiz:    { label: 'Quiz',    icon: '', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300', dot: 'bg-amber-400' },
+  trabajo: { label: 'Trabajo', icon: '', cls: 'bg-sky-500/15 text-sky-600 dark:text-sky-300', dot: 'bg-sky-400' },
+  tarea:   { label: 'Tarea',   icon: '', cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300', dot: 'bg-emerald-400' },
 };
 const REMINDERS = [7, 3, 1, 0];
 const REM_LABEL = { 7: 'en 1 semana', 3: 'en 3 días', 1: 'mañana', 0: 'hoy' };
@@ -125,10 +125,10 @@ let cal = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: iso(new 
 let filter = 'all';
 
 /* ================== UI base ================== */
-function toast(msg, icon = '✨') {
+function toast(msg) {
   const t = document.createElement('div');
   t.className = 'pointer-events-auto max-w-sm w-full flex gap-2 items-start bg-slate-900 text-white border border-emerald-500/40 rounded-2xl px-4 py-3 shadow-xl fade-in text-sm';
-  t.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  t.innerHTML = `<svg viewBox="0 0 24 24" class="w-5 h-5 shrink-0 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg><span>${msg}</span>`;
   $('#toasts').appendChild(t);
   setTimeout(() => { t.style.opacity = 0; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 4500);
 }
@@ -156,6 +156,21 @@ const ICON = p => `<svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="
 const MINI = p => `<svg viewBox="0 0 24 24" class="inline-block w-3.5 h-3.5 -mt-0.5 mr-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const I_USER = MINI('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/>');
 const I_PIN = MINI('<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>');
+const P = {
+  ai: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  focus: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5M9.5 2.5h5"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.7 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+  share: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/>',
+  cam: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  up: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>',
+  down: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v4h16v-4"/>',
+  disk: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-6h8v6"/>',
+  cal: '<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  bell: '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+};
+const IC = (k, cls = 'w-5 h-5') => `<svg viewBox="0 0 24 24" class="${cls} inline-block shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${P[k]}</svg>`;
 const NAV = [
   ['home', ICON('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>'), 'Inicio'],
   ['week', ICON('<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 14h3M13 14h3M8 17.5h3"/>'), 'Horario'],
@@ -234,10 +249,10 @@ function viewHome() {
   const addedToday = lastAdd === iso(new Date());
   const banner = !addedToday
     ? `<div class="rounded-2xl p-4 bg-gradient-to-r from-teal-700 to-emerald-600 text-white flex gap-3 items-center shadow-lg">
-         <span class="text-2xl">💡</span>
+         <span class="shrink-0">${ICON('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>')}</span>
          <div class="flex-1 text-sm"><b>¿Qué pasó hoy en la U?</b><br><span class="opacity-90">Registra tus pendientes del día para no olvidar nada.</span></div>
          <button id="bannerAdd" class="bg-white/20 hover:bg-white/30 rounded-xl px-3 py-2 text-xs font-semibold">Agregar</button></div>`
-    : `<div class="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/30 text-sm text-emerald-600 dark:text-emerald-300">🔥 ¡Genial! Ya registraste pendientes hoy. Sigue así.</div>`;
+    : `<div class="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/30 text-sm text-emerald-600 dark:text-emerald-300">¡Genial! Ya registraste pendientes hoy. Sigue así.</div>`;
 
   const nd = next ? daysUntil(next.date) : null, nty = next ? (TYPES[next.type] || TYPES.tarea) : null;
   const hero = next ? `
@@ -246,15 +261,15 @@ function viewHome() {
       <div class="flex items-end justify-between mt-2 gap-3">
         <div class="min-w-0"><span class="text-xs bg-white/20 rounded-full px-2 py-0.5">${nty.icon} ${nty.label}</span>
           <h2 class="text-xl font-bold mt-2 leading-tight">${esc(next.title)}</h2>
-          <p class="text-sm opacity-90 mt-1">${esc(next.subject || '')} ${next.teacher ? '· 👤 ' + esc(next.teacher) : ''}</p>
+          <p class="text-sm opacity-90 mt-1">${esc(next.subject || '')} ${next.teacher ? '· ' + I_USER + esc(next.teacher) : ''}</p>
           <p class="text-xs opacity-80 mt-1">${fmtDate(next.date)}${next.time ? ' · ' + esc(next.time) : ''}</p></div>
         <div class="text-center shrink-0"><div class="font-title text-5xl leading-none">${nd}</div><div class="text-xs opacity-90 mt-1">${nd === 1 ? 'día' : 'días'}</div></div>
       </div></div>`
-    : `<div class="${card} p-6 text-center"><div class="text-4xl">🎉</div><p class="font-semibold mt-2">Sin pendientes próximos</p><p class="text-sm text-slate-500">Agrega uno con el botón + o usa el asistente IA.</p></div>`;
+    : `<div class="${card} p-6 text-center"><p class="font-semibold">Sin pendientes próximos</p><p class="text-sm text-slate-500">Agrega uno con el botón + o usa el asistente IA.</p></div>`;
 
   const todayClasses = state.classes.filter(c => c.day === dayIdx(new Date())).sort((a, b) => a.start.localeCompare(b.start));
   return `<div class="space-y-4">
-    <div><h2 class="text-2xl font-bold">${greet}${state.name ? ', ' + esc(state.name) : ''} 👋 <button id="editName" class="text-sm align-middle opacity-60 hover:opacity-100" aria-label="Cambiar nombre">✏️</button></h2>
+    <div><h2 class="text-2xl font-bold">${greet}${state.name ? ', ' + esc(state.name) : ''} <button id="editName" class="align-middle opacity-60 hover:opacity-100" aria-label="Cambiar nombre">${MINI('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>')}</button></h2>
       <p class="text-sm text-slate-500 dark:text-slate-400">${DAYS[dayIdx(new Date())]}, ${new Date().getDate()} de ${MONTHS[new Date().getMonth()]} · ${todayCount ? `<b class="text-emerald-500">${todayCount} para hoy</b>` : 'nada para hoy'}</p></div>
     ${banner}${hero}
     <div class="grid grid-cols-4 gap-2 text-center">
@@ -270,7 +285,7 @@ function viewHome() {
   </div>`;
 }
 function nameForm() {
-  openModal(`<h3 class="font-bold text-lg mb-1">👋 ¡Hola! ¿Cómo te llamas?</h3>
+  openModal(`<h3 class="font-bold text-lg mb-1">¡Hola! ¿Cómo te llamas?</h3>
     <p class="text-sm text-slate-500 mb-3">Personalizaremos tu experiencia en University Planner.</p>
     <form id="nf" class="space-y-3"><input name="name" maxlength="30" autofocus placeholder="Tu nombre" value="${esc(state.name)}" class="${inputCls}">
     <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Ahora no</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
@@ -310,7 +325,7 @@ function viewWeek() {
     : weekGrid();
   return `<div class="space-y-4">
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Horario semanal</h2>
-      <div class="flex gap-2"><button id="wMode" class="${btnG}">${weekMode === 'list' ? '▦ Cuadrícula' : '☰ Lista'}</button><button id="addClass" class="${btnP}">+ Clase</button></div></div>
+      <div class="flex gap-2"><button id="wMode" class="${btnG}">${weekMode === 'list' ? 'Cuadrícula' : 'Lista'}</button><button id="addClass" class="${btnP}">+ Clase</button></div></div>
     <div class="flex gap-2">${[['all', 'Todas'], ['presencial', 'Presencial'], ['virtual', 'Virtual']].map(([k, l]) => `<button data-wf="${k}" class="flex-1 rounded-xl py-2 text-sm font-semibold transition ${weekFilter === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${l}</button>`).join('')}</div>
     <div class="space-y-3">${body}</div>
     <p class="text-[11px] text-slate-400 text-center">Mantén presionada una clase para editarla o eliminarla</p>
@@ -445,9 +460,9 @@ function viewTasks() {
   else { list = list.filter(t => !t.done); if (filter !== 'all') list = list.filter(t => t.type === filter); }
   return `<div class="space-y-3">
     <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Pendientes</h2><button id="addT" class="${btnP}">+ Nuevo</button></div>
-    <div class="flex gap-2 overflow-x-auto pb-1">${[['all','Todos'], ...Object.entries(TYPES).map(([k, v]) => [k, v.icon + ' ' + v.label]), ['done','✔ Hechos']].map(([k, l]) =>
+    <div class="flex gap-2 overflow-x-auto pb-1">${[['all','Todos'], ...Object.entries(TYPES).map(([k, v]) => [k, v.label]), ['done','Hechos']].map(([k, l]) =>
       `<button data-f="${k}" class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition ${filter === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${l}</button>`).join('')}</div>
-    <div class="space-y-2">${list.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-6 text-center">Nada por aquí 🎈</p>`}</div></div>`;
+    <div class="space-y-2">${list.map(taskCard).join('') || `<p class="text-sm text-slate-500 ${card} p-6 text-center">Nada por aquí</p>`}</div></div>`;
 }
 function bindTasks() {
   $('#addT').onclick = () => taskForm();
@@ -459,7 +474,7 @@ function taskForm(t = {}) {
   openModal(`<h3 class="font-bold text-lg mb-3">${t.id ? 'Editar' : 'Nuevo'} pendiente</h3>
     <form id="tf" class="space-y-3">
       <div class="grid grid-cols-4 gap-2">${Object.entries(TYPES).map(([k, v]) => `<label class="cursor-pointer"><input type="radio" name="type" value="${k}" class="peer hidden" ${(t.type || 'tarea') === k ? 'checked' : ''}>
-        <div class="text-center rounded-xl py-2 text-[11px] font-semibold bg-slate-100 dark:bg-slate-900 peer-checked:bg-emerald-500 peer-checked:text-white transition"><div class="text-lg">${v.icon}</div>${v.label}</div></label>`).join('')}</div>
+        <div class="text-center rounded-xl py-2 text-[11px] font-semibold bg-slate-100 dark:bg-slate-900 peer-checked:bg-emerald-500 peer-checked:text-white transition">${v.label}</div></label>`).join('')}</div>
       <input name="title" required placeholder="Título (ej. Parcial 2 de circuitos)" value="${esc(t.title)}" class="${inputCls}">
       <input name="subject" list="dlSub2" placeholder="Materia" value="${esc(t.subject)}" class="${inputCls}">
       <datalist id="dlSub2">${subs.map(s => `<option value="${esc(s.subject)}">`).join('')}</datalist>
@@ -467,7 +482,7 @@ function taskForm(t = {}) {
       <div class="grid grid-cols-2 gap-3"><label class="text-xs">Fecha<input type="date" name="date" required value="${t.date || iso(new Date())}" class="${inputCls}"></label>
       <label class="text-xs">Hora<input type="time" name="time" value="${t.time || ''}" class="${inputCls}"></label></div>
       <textarea name="notes" rows="2" placeholder="Notas" class="${inputCls}">${esc(t.notes)}</textarea>
-      <p class="text-[11px] text-slate-500">🔔 Recordatorios: 1 semana, 3 días, 1 día antes y el mismo día.</p>
+      <p class="text-[11px] text-slate-500">Recordatorios: 1 semana, 3 días, 1 día antes y el mismo día.</p>
       <div class="flex gap-2"><button type="button" onclick="closeModal()" class="${btnG} flex-1">Cancelar</button><button class="${btnP} flex-1">Guardar</button></div></form>`);
   $('#tf').onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
     const o = { id: t.id || uid(), type: f.type, title: f.title.trim(), subject: f.subject.trim(), teacher: f.teacher.trim(), date: f.date, time: f.time, notes: f.notes.trim(), done: !!t.done, fired: t.date === f.date ? (t.fired || []) : [] };
@@ -487,7 +502,7 @@ function notify(title, body) {
   state.notifs = state.notifs.slice(0, 60);
   toast(`<b>${esc(title)}</b><br>${esc(body)}`, '🔔');
   if ('Notification' in window && Notification.permission === 'granted') {
-    try { navigator.serviceWorker?.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#059669"/><text x="32" y="43" font-size="34" text-anchor="middle">🎓</text></svg>') }) : new Notification(title, { body })); }
+    try { navigator.serviceWorker?.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#059669"/><path d="M2 9l10-5 10 5-10 5z" fill="white"/></svg>') }) : new Notification(title, { body })); }
     catch { new Notification(title, { body }); }
   }
 }
@@ -510,7 +525,7 @@ function checkReminders() {
 }
 function notifCenter() {
   state.seenNotifs = state.notifs.length; save(); $('#bellDot').classList.add('hidden');
-  openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg">🔔 Notificaciones</h3><button onclick="closeModal()" class="text-xl">✕</button></div>
+  openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg flex items-center gap-2">${IC('bell')} Notificaciones</h3><button onclick="closeModal()" class="text-xl">✕</button></div>
     <div class="space-y-2">${state.notifs.map(n => `<div class="rounded-xl bg-slate-100 dark:bg-slate-900 p-3 text-sm"><b>${esc(n.title)}</b><br><span class="text-slate-500 dark:text-slate-400">${esc(n.body)}</span><div class="text-[10px] text-slate-400 mt-1">${new Date(n.at).toLocaleString('es')}</div></div>`).join('') || '<p class="text-sm text-slate-500">Sin notificaciones aún.</p>'}</div>
     <div class="flex gap-2 mt-4"><button id="askPerm" class="${btnG} flex-1">Activar avisos del sistema</button><button id="clrN" class="${btnG} flex-1">Limpiar</button></div>`);
   $('#askPerm').onclick = () => 'Notification' in window ? Notification.requestPermission().then(p => toast('Permiso: ' + p)) : toast('Tu navegador no soporta notificaciones');
@@ -671,29 +686,29 @@ let aiPreview = null, imgResult = null;
 function viewAI() {
   return `<div class="space-y-5">
     <section class="${card} p-4 space-y-3">
-      <div class="flex items-center gap-2"><span class="text-2xl">🤖</span><div><h2 class="font-bold">Asistente inteligente</h2><p class="text-xs text-slate-500 dark:text-slate-400">Escribe o pega en lenguaje natural.</p></div></div>
+      <div class="flex items-center gap-2"><span class="text-emerald-500">${IC('ai', 'w-7 h-7')}</span><div><h2 class="font-bold">Asistente inteligente</h2><p class="text-xs text-slate-500 dark:text-slate-400">Escribe o pega en lenguaje natural.</p></div></div>
       <textarea id="aiText" rows="3" class="${inputCls}" placeholder="Parcial de Electrónica el próximo viernes a las 10am con el profe Carlos"></textarea>
       <div class="flex flex-wrap gap-2">${['Quiz de Física mañana a las 8am con la profe Andrea','Entrega de proyecto de Programación el 15 de noviembre','Tarea de Cálculo en 3 días'].map(s => `<button data-ex="${esc(s)}" class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">${esc(s)}</button>`).join('')}</div>
-      <button id="aiGo" class="${btnP} w-full">✨ Analizar</button>
+      <button id="aiGo" class="${btnP} w-full">Analizar</button>
       <div id="aiOut">${aiPreview ? aiPreviewHtml() : ''}</div>
     </section>
     <section class="${card} p-4 space-y-3">
-      <div class="flex items-center gap-2"><span class="text-2xl">📸</span><div><h2 class="font-bold">Importar desde pantallazo</h2><p class="text-xs text-slate-500 dark:text-slate-400">Horario o cortes de notas de la U.</p></div></div>
+      <div class="flex items-center gap-2"><span class="text-emerald-500">${IC('cam', 'w-7 h-7')}</span><div><h2 class="font-bold">Importar desde pantallazo</h2><p class="text-xs text-slate-500 dark:text-slate-400">Horario o cortes de notas de la U.</p></div></div>
       <label id="drop" class="dropzone block border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-6 text-center cursor-pointer transition">
         <input id="file" type="file" accept="image/*" class="hidden">
-        <div class="text-3xl mb-1">⬆️</div><p class="text-sm font-medium">Arrastra una imagen o toca para elegir</p><p class="text-[11px] text-slate-500">PNG · JPG · captura de pantalla</p></label>
+        <div class="mb-1 text-emerald-500">${IC('up', 'w-8 h-8')}</div><p class="text-sm font-medium">Arrastra una imagen o toca para elegir</p><p class="text-[11px] text-slate-500">PNG · JPG · captura de pantalla</p></label>
       <div id="imgOut">${imgResult ? imgResultHtml() : ''}</div>
     </section>
-    <section class="${card} p-4"><h3 class="font-semibold mb-2">💾 Datos</h3>
+    <section class="${card} p-4"><h3 class="font-semibold mb-2">Datos</h3>
       <div class="flex flex-wrap gap-2"><button id="exp" class="${btnG}">Exportar JSON</button><label class="${btnG} cursor-pointer">Importar JSON<input id="imp" type="file" accept="application/json" class="hidden"></label><button id="wipe" class="${btnG} !text-rose-500">Borrar todo</button></div></section></div>`;
 }
 function aiPreviewHtml() {
   const p = aiPreview;
   return `<div class="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm space-y-1 fade-in">
     <p class="font-semibold text-emerald-500">Esto es lo que entendí:</p>
-    <p>${TYPES[p.type].icon} <b>${esc(p.title)}</b></p>
-    <p>📅 ${p.date ? fmtDate(p.date) : '<span class="text-amber-500">Sin fecha detectada</span>'}${p.time ? ' · ⏰ ' + p.time : ''}</p>
-    <p>📚 ${esc(p.subject || '—')} &nbsp; 👤 ${esc(p.teacher || '—')}</p>
+    <p><b>${TYPES[p.type].label}:</b> ${esc(p.title)}</p>
+    <p>${IC('cal', 'w-4 h-4')} ${p.date ? fmtDate(p.date) : '<span class="text-amber-500">Sin fecha detectada</span>'}${p.time ? ' · ' + IC('clock', 'w-4 h-4') + ' ' + p.time : ''}</p>
+    <p>${IC('book', 'w-4 h-4')} ${esc(p.subject || '—')} &nbsp; ${I_USER}${esc(p.teacher || '—')}</p>
     <div class="flex gap-2 pt-2"><button id="aiEdit" class="${btnG} flex-1">Editar</button><button id="aiSave" class="${btnP} flex-1">Crear pendiente</button></div></div>`;
 }
 function imgResultHtml() {
@@ -713,7 +728,7 @@ function bindAI() {
   $('#aiGo').onclick = async () => {
     const t = $('#aiText').value.trim(); if (!t) return toast('Escribe algo primero', '✏️');
     $('#aiGo').textContent = 'Pensando…'; await new Promise(r => setTimeout(r, 500));
-    aiPreview = await aiExtract(t); $('#aiGo').textContent = '✨ Analizar';
+    aiPreview = await aiExtract(t); $('#aiGo').textContent = 'Analizar';
     $('#aiOut').innerHTML = aiPreviewHtml(); bindAIPrev();
   };
   bindAIPrev();
@@ -758,15 +773,15 @@ function bindImgRes() {
 /* ================== Hub "Más" ================== */
 let sub = null;
 const MORE = [
-  ['ai', '🤖', 'Asistente IA e imágenes', 'Crea pendientes con texto natural o pantallazos'],
-  ['focus', '🍅', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
-  ['chat', '💬', 'Chat de estudio', 'Mensajes por materia o grupo'],
-  ['share', '🔗', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
+  ['ai', 'ai', 'Asistente IA e imágenes', 'Crea pendientes con texto natural o pantallazos'],
+  ['focus', 'focus', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
+  ['chat', 'chat', 'Chat de estudio', 'Mensajes con tus códigos de chat'],
+  ['share', 'share', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
 ];
 function viewMore() {
   if (!sub) return `<div class="space-y-3"><h2 class="text-xl font-bold">Más herramientas</h2>
     ${MORE.map(([k, i, t, d]) => `<button data-sub="${k}" class="${card} w-full p-4 flex items-center gap-4 text-left hover:ring-2 hover:ring-emerald-500/50 transition">
-      <span class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-2xl">${i}</span>
+      <span class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-white">${IC(i, 'w-6 h-6')}</span>
       <span class="flex-1"><b class="block text-sm">${t}</b><span class="text-xs text-slate-500 dark:text-slate-400">${d}</span></span><span class="text-slate-400">›</span></button>`).join('')}</div>`;
   return `<button id="back" class="${btnG} mb-3">‹ Más</button>` + ({ ai: viewAI, focus: viewFocus, chat: viewChat, share: viewShare }[sub])();
 }
@@ -809,10 +824,10 @@ function pomoFinish() {
   p.phase = wasFocus ? 'rest' : 'focus'; p.left = pomoTotal(); save();
   beep();
   const msg = wasFocus ? '¡Bloque de enfoque completado! Toma un descanso.' : 'Descanso terminado. ¡A concentrarse!';
-  notify(wasFocus ? '🍅 ¡Enfoque completado!' : '⏰ Fin del descanso', msg);
+  notify(wasFocus ? '¡Enfoque completado!' : 'Fin del descanso', msg);
   const ov = document.createElement('div');
   ov.className = 'fixed inset-0 z-[70] grid place-items-center bg-emerald-600/90 backdrop-blur-sm text-white text-center p-6 fade-in';
-  ov.innerHTML = `<div><div class="text-7xl animate-bounce">${wasFocus ? '🎉' : '💪'}</div><h2 class="font-title text-2xl mt-4">${wasFocus ? '¡Bien hecho!' : '¡Vamos de nuevo!'}</h2><p class="mt-2">${msg}</p><button class="mt-6 bg-white text-emerald-700 font-bold rounded-2xl px-6 py-3">Continuar</button></div>`;
+  ov.innerHTML = `<div><div class="flex justify-center animate-bounce">${wasFocus ? ICON('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>').replace('w-6 h-6', 'w-24 h-24') : ICON('<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>').replace('w-6 h-6', 'w-24 h-24')}</div><h2 class="font-title text-2xl mt-4">${wasFocus ? '¡Bien hecho!' : '¡Vamos de nuevo!'}</h2><p class="mt-2">${msg}</p><button class="mt-6 bg-white text-emerald-700 font-bold rounded-2xl px-6 py-3">Continuar</button></div>`;
   ov.querySelector('button').onclick = () => ov.remove(); document.body.appendChild(ov);
   if (tab === 'more' && sub === 'focus') render();
 }
@@ -826,16 +841,16 @@ setInterval(() => { if (state.pomo.running) { if (pomoLeft() <= 0) pomoFinish();
 function viewFocus() {
   const p = state.pomo; pomoDay();
   const focus = p.phase === 'focus';
-  return `<div class="space-y-4"><h2 class="text-xl font-bold">🍅 Modo enfoque</h2>
+  return `<div class="space-y-4"><h2 class="text-xl font-bold">Modo enfoque</h2>
     <div class="flex gap-2">${Object.entries(POMO).map(([k, v]) => `<button data-mode="${k}" class="flex-1 rounded-xl py-2 text-sm font-semibold transition ${p.mode === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${v.focus} / ${v.rest} min</button>`).join('')}</div>
     <div class="${card} p-6 flex flex-col items-center">
-      <span id="pomoPhase" class="text-xs font-semibold px-3 py-1 rounded-full ${focus ? 'bg-emerald-500/15 text-emerald-500' : 'bg-sky-500/15 text-sky-400'}">${focus ? '🎯 Enfoque' : '☕ Descanso'}</span>
+      <span id="pomoPhase" class="text-xs font-semibold px-3 py-1 rounded-full ${focus ? 'bg-emerald-500/15 text-emerald-500' : 'bg-sky-500/15 text-sky-400'}">${focus ? 'Enfoque' : 'Descanso'}</span>
       <div class="relative my-4 w-56 h-56">
         <svg viewBox="0 0 200 200" class="w-full h-full -rotate-90"><circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="10"/>
           <circle id="pomoRing" cx="100" cy="100" r="90" fill="none" stroke="${focus ? '#10B981' : '#38BDF8'}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${RING}" style="stroke-dashoffset:0;transition:stroke-dashoffset .5s linear"/></svg>
         <div id="pomoTime" class="absolute inset-0 grid place-items-center font-title text-5xl">${mmss(pomoLeft())}</div></div>
-      <div class="flex gap-2 w-full"><button id="pStart" class="${btnP} flex-1">${p.running ? '⏸ Pausar' : '▶ Iniciar'}</button><button id="pReset" class="${btnG} flex-1">↺ Reiniciar</button><button id="pSkip" class="${btnG}" title="Saltar fase">⏭</button></div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-4">Bloques completados hoy: <b class="text-emerald-500">${p.count}</b> 🍅</p></div></div>`;
+      <div class="flex gap-2 w-full"><button id="pStart" class="${btnP} flex-1">${p.running ? 'Pausar' : 'Iniciar'}</button><button id="pReset" class="${btnG} flex-1">Reiniciar</button><button id="pSkip" class="${btnG}" title="Saltar fase" aria-label="Saltar fase">${ICON('<path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/>').replace('w-6 h-6', 'w-5 h-5')}</button></div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-4">Bloques completados hoy: <b class="text-emerald-500">${p.count}</b></p></div></div>`;
 }
 function bindFocus() {
   const p = state.pomo; updatePomoUI();
@@ -859,9 +874,9 @@ function exportPayload() {
     classes: shareOpts.classes ? state.classes.map(({ subject, teacher, room, day, start, end }) => ({ subject, teacher, room, day, start, end })) : [] };
 }
 function exportText() {
-  const p = exportPayload(), L = [`🎓 University Planner${p.from ? ' — cronograma de ' + p.from : ''}`];
-  if (p.tasks.length) { L.push('', '📌 PENDIENTES'); p.tasks.sort((a, b) => a.date.localeCompare(b.date)).forEach(t => L.push(`${TYPES[t.type]?.icon || '•'} ${TYPES[t.type]?.label || t.type}: ${t.title}${t.subject ? ' (' + t.subject + ')' : ''} — ${fmtDate(t.date)}${t.time ? ' ' + t.time : ''}${t.teacher ? ' · Prof. ' + t.teacher : ''}`)); }
-  if (p.classes.length) { L.push('', '🗓️ HORARIO'); [...p.classes].sort((a, b) => a.day - b.day || a.start.localeCompare(b.start)).forEach(c => L.push(`${DAYS[c.day]} ${c.start}-${c.end}: ${c.subject}${c.room ? ' · ' + c.room : ''}${c.teacher ? ' · ' + c.teacher : ''}`)); }
+  const p = exportPayload(), L = [`University Planner${p.from ? ' — cronograma de ' + p.from : ''}`];
+  if (p.tasks.length) { L.push('', 'PENDIENTES'); p.tasks.sort((a, b) => a.date.localeCompare(b.date)).forEach(t => L.push(`${TYPES[t.type]?.icon || '•'} ${TYPES[t.type]?.label || t.type}: ${t.title}${t.subject ? ' (' + t.subject + ')' : ''} — ${fmtDate(t.date)}${t.time ? ' ' + t.time : ''}${t.teacher ? ' · Prof. ' + t.teacher : ''}`)); }
+  if (p.classes.length) { L.push('', 'HORARIO'); [...p.classes].sort((a, b) => a.day - b.day || a.start.localeCompare(b.start)).forEach(c => L.push(`${DAYS[c.day]} ${c.start}-${c.end}: ${c.subject}${c.room ? ' · ' + c.room : ''}${c.teacher ? ' · ' + c.teacher : ''}`)); }
   return L.join('\n');
 }
 function exportOutput() { return shareOpts.fmt === 'json' ? JSON.stringify(exportPayload()) : exportText(); }
@@ -920,23 +935,23 @@ function gcalLink(t) {
 function viewShare() {
   const list = syncable();
   return `<div class="space-y-5">
-    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📤 Compartir cronograma / pendientes</h2>
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold flex items-center gap-2">${IC('up')}<span>Compartir cronograma / pendientes</span></h2>
       <div class="flex flex-wrap gap-3 text-xs">
         <label class="flex items-center gap-1"><input type="checkbox" id="oT" ${shareOpts.tasks ? 'checked' : ''}> Pendientes</label>
         <label class="flex items-center gap-1"><input type="checkbox" id="oC" ${shareOpts.classes ? 'checked' : ''}> Horario</label></div>
       <div class="flex gap-2">${[['json', 'Código JSON'], ['text', 'Texto legible']].map(([k, l]) => `<button data-fmt="${k}" class="flex-1 rounded-xl py-2 text-xs font-semibold ${shareOpts.fmt === k ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700'}">${l}</button>`).join('')}</div>
       <textarea id="shOut" readonly rows="6" class="${inputCls} font-mono text-xs">${esc(exportOutput())}</textarea>
       <p class="text-[11px] text-slate-500">Tu compañero solo puede importar el <b>código JSON</b>; el texto legible es para leer o enviar por chat.</p>
-      <div class="flex gap-2"><button id="shCopy" class="${btnP} flex-1">📋 Copiar</button>${navigator.share ? `<button id="shShare" class="${btnG} flex-1">↗ Compartir</button>` : ''}</div></section>
-    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📥 Importar calendario</h2>
+      <div class="flex gap-2"><button id="shCopy" class="${btnP} flex-1">Copiar</button>${navigator.share ? `<button id="shShare" class="${btnG} flex-1">Compartir</button>` : ''}</div></section>
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold flex items-center gap-2">${IC('down')}<span>Importar calendario</span></h2>
       <p class="text-xs text-slate-500 dark:text-slate-400">Pega el código de un compañero. Los eventos repetidos se omiten.</p>
       <textarea id="imIn" rows="4" class="${inputCls} font-mono text-xs" placeholder='{"app":"UniversityPlanner",...}'></textarea>
       <button id="imGo" class="${btnP} w-full">Importar</button></section>
-    <section class="${card} p-4 space-y-3"><h2 class="font-bold">📆 Google Calendar</h2>
+    <section class="${card} p-4 space-y-3"><h2 class="font-bold flex items-center gap-2">${IC('cal')}<span>Google Calendar</span></h2>
       <p class="text-xs text-slate-500 dark:text-slate-400">Descarga un archivo <b>.ics</b> con tus ${list.length} pendientes próximos (incluye alertas: 1 semana, 3 días, 1 día y el mismo día) e impórtalo en Google Calendar → Configuración → Importar y exportar. O agrega cada evento con un clic:</p>
-      <button id="icsBtn" class="${btnP} w-full" ${list.length ? '' : 'disabled style="opacity:.5"'}>⬇ Sincronizar con Google Calendar (.ics)</button>
+      <button id="icsBtn" class="${btnP} w-full" ${list.length ? '' : 'disabled style="opacity:.5"'}>Sincronizar con Google Calendar (.ics)</button>
       <div class="space-y-1.5 max-h-56 overflow-y-auto">${list.map(t => `<a href="${gcalLink(t)}" target="_blank" rel="noopener" class="flex items-center justify-between gap-2 rounded-xl bg-slate-100 dark:bg-slate-900 px-3 py-2 text-xs hover:ring-1 hover:ring-emerald-500">
-        <span class="truncate">${(TYPES[t.type] || TYPES.tarea).icon} ${esc(t.title)} · ${fmtDate(t.date)}</span><span class="text-emerald-500 shrink-0 font-semibold">➕ Google</span></a>`).join('') || '<p class="text-xs text-slate-500">No hay pendientes próximos.</p>'}</div></section></div>`;
+        <span class="truncate">${(TYPES[t.type] || TYPES.tarea).label}: ${esc(t.title)} · ${fmtDate(t.date)}</span><span class="text-emerald-500 shrink-0 font-semibold">+ Google</span></a>`).join('') || '<p class="text-xs text-slate-500">No hay pendientes próximos.</p>'}</div></section></div>`;
 }
 function bindShare() {
   const refresh = () => { $('#shOut').value = exportOutput(); };
@@ -984,7 +999,7 @@ function viewChat() {
   const live = FB_ON && SESSION?.provider === 'google', g = state.groupCode || '';
   const chip = (code, label) => `<button data-code="${esc(code)}" class="lp whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${g === code ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(label)}</button>`;
   return `<div class="space-y-3">
-    <div class="flex items-center justify-between"><h2 class="text-xl font-bold">💬 Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar</button>${live ? `<button id="addCode" class="${btnP}">+ Código</button>` : ''}</div></div>
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold flex items-center gap-2">${IC('chat')} Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar</button>${live ? `<button id="addCode" class="${btnP}">+ Código</button>` : ''}</div></div>
     <div class="flex gap-2 overflow-x-auto pb-1">${chip('', 'Solo local')}${state.codes.map(c => chip(c, c)).join('')}</div>
     <p class="text-[11px] text-slate-400 text-center">${live ? 'Cada código es un chat distinto. Mantén presionado uno para quitarlo.' : 'El chat en vivo con códigos se activa al iniciar sesión con Google. Mientras tanto los mensajes se guardan solo en tu dispositivo.'}</p>
     <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
@@ -1148,7 +1163,7 @@ function chatStatusHtml() {
   const s = cloud.chats[g]?.status || '';
   if (s === 'ok') return '<span class="text-emerald-500">● Conectado en vivo</span>';
   if (s === 'connecting') return '<span class="text-slate-400">○ Conectando…</span>';
-  if (s.startsWith('error:')) return `<span class="text-rose-500">✕ Error (${esc(s.slice(6))}). ${s === 'error:permission-denied' ? 'Falta crear/publicar las reglas de Firestore.' : s === 'error:unavailable' ? 'Sin conexión.' : ''}</span>`;
+  if (s.startsWith('error:')) return `<span class="text-rose-500">Error (${esc(s.slice(6))}). ${s === 'error:permission-denied' ? 'Falta crear/publicar las reglas de Firestore.' : s === 'error:unavailable' ? 'Sin conexión.' : ''}</span>`;
   return '<span class="text-slate-400">○ Esperando sesión…</span>';
 }
 function chatStatusUpdate() { const el = $('#chatStatus'); if (el) el.innerHTML = chatStatusHtml(); }
@@ -1157,7 +1172,7 @@ function showLogin() {
   const ov = document.createElement('div');
   ov.className = 'fixed inset-0 z-[80] overflow-y-auto bg-ink text-slate-100 grid place-items-center p-5';
   ov.innerHTML = `<div class="w-full max-w-sm text-center space-y-5 fade-in">
-    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-4xl shadow-xl shadow-emerald-500/30">🎓</div>
+    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 grid place-items-center text-white shadow-xl shadow-emerald-500/30"><svg viewBox="0 0 24 24" class="w-11 h-11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5"/><path d="M22 9v6"/></svg></div>
     <div><h1 class="font-title text-2xl bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">University Planner</h1><p class="text-xs text-slate-400 mt-1">By Megabyte</p></div>
     <p class="text-sm text-slate-300">Inicia sesión con tu cuenta de Google o correo universitario para guardar tu horario y pendientes.</p>
     <div id="gBtn" class="flex justify-center min-h-[44px]"></div>
@@ -1182,7 +1197,7 @@ function accountModal() {
   openModal(`<div class="text-center space-y-3">
     <div class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden grid place-items-center text-2xl text-white font-bold">${avatarHtml(true)}</div>
     <div><p class="font-bold">${esc(state.name || SESSION.name || 'Estudiante')}</p><p class="text-sm text-slate-500 dark:text-slate-400 break-all">${esc(SESSION.email)}</p>
-    <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? '✔ Cuenta de Google · ' + (cloud.ready ? '☁️ datos sincronizados' : cloud.expired ? '⚠️ sesión en la nube vencida, vuelve a entrar' : '☁️ conectando…') : 'Modo local (sin verificar)'}</p></div>
+    <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? 'Cuenta de Google · ' + (cloud.ready ? 'datos sincronizados' : cloud.expired ? 'sesión en la nube vencida, vuelve a entrar' : 'conectando…') : 'Modo local (sin verificar)'}</p></div>
     <div class="flex gap-2 pt-2"><button onclick="closeModal()" class="${btnG} flex-1">Cerrar</button><button id="logout" class="${btnP} flex-1">Cerrar sesión</button></div>
     <p class="text-[11px] text-slate-500">${SESSION.provider === 'google' ? 'Tus pendientes y horario se guardan en tu cuenta y los ves en cualquier dispositivo.' : 'Tus datos quedan guardados en este dispositivo para esta cuenta.'}</p></div>`);
   $('#logout').onclick = async () => { cloud.unsub?.(); Object.values(cloud.chats).forEach(c => c.unsub?.()); try { await fb?.auth.signOut(); } catch {} localStorage.removeItem('up.session'); location.reload(); };
