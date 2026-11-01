@@ -1095,7 +1095,7 @@ function viewChat() {
   const live = FB_ON && SESSION?.provider === 'google', g = state.groupCode || '';
   const chip = (code, label) => `<button data-code="${esc(code)}" class="lp whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold ${g === code ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate850'}">${esc(label)}</button>`;
   return `<div class="space-y-3">
-    <div class="flex items-center justify-between"><h2 class="text-xl font-bold flex items-center gap-2">${IC('chat')} Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar</button>${live ? `<button id="addCode" class="${btnP}">+ Código</button>` : ''}</div></div>
+    <div class="flex items-center justify-between"><h2 class="text-xl font-bold flex items-center gap-2">${IC('chat')} Chat de estudio</h2><div class="flex gap-2"><button id="clrRoom" class="${btnG}">Limpiar</button>${live ? `<button id="addCode" class="${btnP}">+ ChatKey</button>` : ''}</div></div>
     <div class="flex gap-2 overflow-x-auto pb-1">${chip('', 'Solo local')}${state.codes.map(c => chip(c, c)).join('')}</div>
     <p class="text-[11px] text-slate-400 text-center">${live ? 'Cada código es un chat distinto. Mantén presionado uno para quitarlo.' : 'El chat en vivo con códigos se activa al iniciar sesión con Google. Mientras tanto los mensajes se guardan solo en tu dispositivo.'}</p>
     <div id="chatList" class="${card} p-3 h-[45vh] overflow-y-auto flex flex-col gap-2"></div>
@@ -1118,7 +1118,7 @@ function bindChat() {
   });
   const ac = $('#addCode');
   if (ac) ac.onclick = () => {
-    askText('Código del chat (ej. cun-sistemas-3a)', v => {
+    askText('ChatKey del chat (ej. cun-sistemas-3a)', v => {
       const c = normCode(v || '');
       if (!c) return;
       if (c.length < 4) return toast('El código debe tener al menos 4 letras o números', '⚠️');

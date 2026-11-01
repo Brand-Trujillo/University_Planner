@@ -1,4 +1,4 @@
-const CACHE = 'university-planner-v26';
+const CACHE = 'university-planner-v27';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './tailwind.js',
   './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js', './vendor/firebase-firestore-compat.js', './vendor/firebase-messaging-compat.js'];
 // Avisos push (FCM) con la app cerrada: el servidor envía solo datos y aquí se muestran
