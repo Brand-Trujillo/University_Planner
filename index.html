@@ -226,7 +226,10 @@ function taskCard(t) {
 function bindTaskActions(root) {
   root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const t = state.tasks.find(x => x.id === b.dataset.id); if (!t) return;
-    if (b.dataset.act === 'toggle') { t.done = !t.done; save(); render(); }
+    if (b.dataset.act === 'toggle') {
+      if (t.done) { t.done = false; save(); render(); }
+      else askYes(`¿Marcar "${t.title}" como hecho?`, () => { t.done = true; save(); render(); });
+    }
   });
   longPress('[data-lp-task]', el => {
     const t = state.tasks.find(x => x.id === el.dataset.lpTask); if (!t) return;
