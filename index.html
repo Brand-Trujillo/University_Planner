@@ -735,7 +735,8 @@ function viewAI() {
   return `<div class="space-y-5">
     <section class="${card} p-4 space-y-3">
       <div class="flex items-center gap-2"><span class="text-emerald-500">${IC('chat', 'w-7 h-7')}</span><div><h2 class="font-bold">Pregúntale a tu asistente</h2><p class="text-xs text-slate-500 dark:text-slate-400">Consulta tus pendientes y clases.</p></div></div>
-      <form id="qaForm" class="flex gap-2"><input id="qaIn" autocomplete="off" placeholder="¿Qué quizes tengo pendientes?" class="${inputCls} flex-1"><button class="${btnP}">Preguntar</button></form>
+      <form id="qaForm" class="flex gap-2"><input id="qaIn" autocomplete="off" placeholder="¿Qué quizes tengo pendientes?" class="${inputCls} flex-1">${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" id="qaMic" aria-label="Hablar" class="${btnG} !px-3"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>` : ''}<button class="${btnP}">Preguntar</button></form>
+      ${'speechSynthesis' in window ? `<label class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"><input type="checkbox" id="qaVoice" ${localStorage.getItem('up.voice') === '1' ? 'checked' : ''}> Leer respuestas en voz alta</label>` : ''}
       <div class="flex flex-wrap gap-2">${['¿Qué quizes tengo pendientes?', '¿Cuándo es mi próximo parcial?', '¿Qué tengo esta semana?', '¿Qué clases tengo hoy?'].map(s => `<button type="button" data-qa="${esc(s)}" class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">${esc(s)}</button>`).join('')}</div>
       <div id="qaOut">${qaHtml()}</div>
     </section>
@@ -778,7 +779,25 @@ function imgResultHtml() {
     <div class="flex gap-2 pt-1"><button id="imgCancel" class="${btnG} flex-1">Descartar</button>${r.data.classes.length || r.data.events.length ? `<button id="imgOk" class="${btnP} flex-1">Agregar al horario</button>` : ''}</div></div>`;
 }
 function bindAI() {
-  const ask = q => { q = q.trim(); if (!q) return; qaLast = { q, a: askLocal(q) }; $('#qaOut').innerHTML = qaHtml(); $('#qaIn').value = ''; };
+  const speak = () => {
+    if (!('speechSynthesis' in window) || localStorage.getItem('up.voice') !== '1') return;
+    const box = $('#qaOut .rounded-xl'); if (!box) return;
+    const txt = box.innerText.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 9).join('. ').replace(/:\./g, ':').replace(/\s*·\s*/g, ', ');
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(txt); u.lang = 'es-ES'; speechSynthesis.speak(u);
+  };
+  const ask = q => { q = q.trim(); if (!q) return; qaLast = { q, a: askLocal(q) }; $('#qaOut').innerHTML = qaHtml(); $('#qaIn').value = ''; speak(); };
+  const vc = $('#qaVoice'); if (vc) vc.onchange = () => { localStorage.setItem('up.voice', vc.checked ? '1' : '0'); if (!vc.checked) speechSynthesis.cancel(); };
+  const mic = $('#qaMic');
+  if (mic) mic.onclick = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR();
+    r.lang = 'es-ES'; r.interimResults = false;
+    mic.classList.add('animate-pulse', 'text-rose-500');
+    r.onresult = e => ask(e.results[0][0].transcript);
+    r.onerror = e => toast(e.error === 'not-allowed' ? 'Permite el micrófono en el navegador' : 'No te escuché, intenta de nuevo');
+    r.onend = () => mic.classList.remove('animate-pulse', 'text-rose-500');
+    try { r.start(); } catch (_) {}
+  };
   $('#qaForm').onsubmit = e => { e.preventDefault(); ask($('#qaIn').value); };
   document.querySelectorAll('[data-qa]').forEach(b => b.onclick = () => ask(b.dataset.qa));
   document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#aiText').value = b.dataset.ex; });
