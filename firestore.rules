@@ -10,6 +10,11 @@ service cloud.firestore {
         && request.resource.data.data.size() < 900000;
     }
 
+    // Dispositivos registrados para avisos push (solo el dueño)
+    match /users/{uid}/tokens/{token} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Chat por código de grupo: cualquier usuario con sesión puede leer y enviar; no se edita ni borra
     match /groups/{code}/messages/{id} {
       allow read: if request.auth != null;

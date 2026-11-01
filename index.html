@@ -527,7 +527,9 @@ function notifCenter() {
   state.seenNotifs = state.notifs.length; save(); $('#bellDot').classList.add('hidden');
   openModal(`<div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg flex items-center gap-2">${IC('bell')} Notificaciones</h3><button onclick="closeModal()" class="text-xl">✕</button></div>
     <div class="space-y-2">${state.notifs.map(n => `<div class="rounded-xl bg-slate-100 dark:bg-slate-900 p-3 text-sm"><b>${esc(n.title)}</b><br><span class="text-slate-500 dark:text-slate-400">${esc(n.body)}</span><div class="text-[10px] text-slate-400 mt-1">${new Date(n.at).toLocaleString('es')}</div></div>`).join('') || '<p class="text-sm text-slate-500">Sin notificaciones aún.</p>'}</div>
-    <div class="flex gap-2 mt-4"><button id="askPerm" class="${btnG} flex-1">Activar avisos del sistema</button><button id="clrN" class="${btnG} flex-1">Limpiar</button></div>`);
+    <div class="flex gap-2 mt-4"><button id="askPerm" class="${btnG} flex-1">Activar avisos del sistema</button><button id="clrN" class="${btnG} flex-1">Limpiar</button></div>
+    ${SESSION?.provider === 'google' ? `<button id="pushBtn" class="${btnP} w-full mt-2">Avisos con la app cerrada: ${localStorage.getItem('up.push') === '1' ? 'activados (tocar para desactivar)' : 'activar'}</button><p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Clases 15 min antes y pendientes a las 8:00 (1 semana, 3 días, 1 día y el mismo día).</p>` : ''}`);
+  const pb = $('#pushBtn'); if (pb) pb.onclick = () => pushToggle(pb);
   $('#askPerm').onclick = () => 'Notification' in window ? Notification.requestPermission().then(p => toast('Permiso: ' + p)) : toast('Tu navegador no soporta notificaciones');
   $('#clrN').onclick = () => { state.notifs = []; state.seenNotifs = 0; save(); closeModal(); };
 }
@@ -1211,7 +1213,9 @@ async function cloudStart() {
   SESSION.uid = user.uid;
   cloud.ref = f.db.collection('users').doc(user.uid);
   chatCloudStart();
-  cloud.unsub = cloud.ref.onSnapshot(snap => {
+  if (localStorage.getItem('up.push') === '1' && 'Notification' in window && Notification.permission === 'granted')
+    pushGetToken().then(t => t && cloud.ref.collection('tokens').doc(t).set({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota', at: Date.now() }).then(() => localStorage.setItem('up.pushToken', t))).catch(() => {});
+  cloud.unsub =  cloud.ref.onSnapshot(snap => {
     if (snap.metadata.hasPendingWrites) return;
     const d = snap.exists ? snap.data() : null;
     if (!cloud.ready) {
@@ -1221,6 +1225,36 @@ async function cloudStart() {
       if (!d || hasLocal) { state.cloudAt = Date.now(); save(); }
     } else if (d && d.updatedAt > (state.cloudAt || 0) && d.data !== cloud.lastJson) applyRemote(d, false);
   }, () => {});
+}
+
+/* Avisos push (FCM): el token del dispositivo se guarda en users/{uid}/tokens y el servidor (Cloud Functions) envía los avisos */
+const VAPID_KEY = 'BHhfR7HdFOfMQkKiinexnCkd9-lCH5bI83j1GxRLSFv9FgbdyFsmCa_qAMTOnP42_u_wbFghveNj_YRn71-BIHk';
+async function pushGetToken() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) throw new Error('unsupported');
+  if (await Notification.requestPermission() !== 'granted') throw new Error('denied');
+  const f = await fbInit(); if (!f || !SESSION?.uid) throw new Error('nologin');
+  if (!firebase.messaging) await loadScript('vendor/firebase-messaging-compat.js');
+  const reg = await navigator.serviceWorker.ready;
+  return firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+}
+async function pushToggle(btn) {
+  const tokens = () => fb.db.collection('users').doc(SESSION.uid).collection('tokens');
+  try {
+    if (localStorage.getItem('up.push') === '1') {
+      const t = localStorage.getItem('up.pushToken');
+      if (t && fb) await tokens().doc(t).delete().catch(() => {});
+      localStorage.removeItem('up.push'); localStorage.removeItem('up.pushToken');
+      toast('Avisos con la app cerrada desactivados');
+    } else {
+      const t = await pushGetToken(); if (!t) throw new Error('notoken');
+      await tokens().doc(t).set({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota', at: Date.now() });
+      localStorage.setItem('up.push', '1'); localStorage.setItem('up.pushToken', t);
+      toast('Avisos con la app cerrada activados');
+    }
+    notifCenter();
+  } catch (e) {
+    toast(e.message === 'denied' ? 'Permite las notificaciones en tu navegador' : e.message === 'unsupported' ? 'Este navegador no soporta avisos push' : 'No se pudieron activar los avisos (' + (e.code || e.message) + ')');
+  }
 }
 
 /* Chat en vivo: un listener por cada código guardado */
