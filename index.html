@@ -858,7 +858,15 @@ const MORE = [
   ['focus', 'focus', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
   ['chat', 'chat', 'Chat de estudio', 'Mensajes con tus códigos de chat'],
   ['share', 'share', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
+  ['ktal', 'down', 'Ktal: tu dinero en control', 'Otra app de Megabyte en Google Play'],
 ];
+const KTAL_URL = 'https://play.google.com/store/apps/details?id=com.andev.ktal';
+function ktalPromo() {
+  openModal(`<div class="flex justify-end"><button onclick="closeModal()" class="text-xl" aria-label="Cerrar">✕</button></div>
+    <img src="ktal.jpg" alt="Ktal: tu dinero, más en control" class="w-full rounded-2xl" loading="lazy">
+    <button id="ktalGo" class="${btnP} w-full mt-3">Ir a Google Play</button>`);
+  $('#ktalGo').onclick = () => askYes('¿Quieres ir a Google Play para ver Ktal?', () => window.open(KTAL_URL, '_blank', 'noopener'));
+}
 function viewMore() {
   if (!sub) return `<div class="space-y-3"><h2 class="text-xl font-bold">Más herramientas</h2>
     ${MORE.map(([k, i, t, d]) => `<button data-sub="${k}" class="${card} w-full p-4 flex items-center gap-4 text-left hover:ring-2 hover:ring-emerald-500/50 transition">
@@ -867,7 +875,7 @@ function viewMore() {
   return `<button id="back" class="${btnG} mb-3">‹ Más</button>` + ({ ai: viewAI, focus: viewFocus, chat: viewChat, share: viewShare }[sub])();
 }
 function bindMore() {
-  if (!sub) { document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; render(); window.scrollTo(0, 0); }); return; }
+  if (!sub) { document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { if (b.dataset.sub === 'ktal') return ktalPromo(); sub = b.dataset.sub; render(); window.scrollTo(0, 0); }); return; }
   $('#back').onclick = () => { sub = null; render(); };
   ({ ai: bindAI, focus: bindFocus, chat: bindChat, share: bindShare }[sub])();
 }
