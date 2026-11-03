@@ -858,11 +858,11 @@ const MORE = [
   ['focus', 'focus', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
   ['chat', 'chat', 'Chat de estudio', 'Mensajes con tus códigos de chat'],
   ['share', 'share', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
-  ['ktal', 'down', 'Ktal: tu dinero en control', 'Otra app de Megabyte en Google Play'],
+  ['ktal', 'down', 'Ktal: tu dinero en control', 'Ktal: app aliada de Megabyte en Google Play'],
 ];
 const KTAL_URL = 'https://play.google.com/store/apps/details?id=com.andev.ktal';
 function ktalPromo() {
-  openModal(`<div class="flex justify-end"><button onclick="closeModal()" class="text-xl" aria-label="Cerrar">✕</button></div>
+  openModal(`<div class="flex items-start justify-between gap-3 mb-3"><div><h3 class="font-bold text-lg leading-tight">¿Quieres tener el control de tu dinero también?</h3><p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Conoce <b class="text-emerald-500">Ktal</b>, una app aliada de Megabyte.</p></div><button onclick="closeModal()" class="text-xl" aria-label="Cerrar">✕</button></div>
     <img src="ktal.jpg" alt="Ktal: tu dinero, más en control" class="w-full rounded-2xl" loading="lazy">
     <button id="ktalGo" class="${btnP} w-full mt-3">Ir a Google Play</button>`);
   $('#ktalGo').onclick = () => askYes('¿Quieres ir a Google Play para ver Ktal?', () => window.open(KTAL_URL, '_blank', 'noopener'));
