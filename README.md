@@ -7,6 +7,10 @@ PWA instalable: dashboard, horario, calendario, pendientes con recordatorios, as
 ## Uso
 Abre la página publicada en Chrome del celular → menú ⋮ → **Instalar app**.
 
+En la foto de perfil, abre **Configuración → Color de la app** para elegir una paleta compatible con los modos claro y oscuro.
+
+En **Más → Carné estudiantil** puedes guardar una imagen JPG, PNG, GIF o WebP, o un PDF de hasta 10 MB y consultarlo dentro de la app. El carné se guarda solamente en este dispositivo, separado por cuenta y sin sincronización en la nube; si borras los datos del navegador o de la app, tendrás que agregarlo de nuevo. El visor PDF utiliza PDF.js, distribuido bajo la licencia incluida en `vendor/PDFJS-LICENSE.txt`.
+
 ## Firebase (cuentas + datos en la nube + chat en vivo)
 1. https://console.firebase.google.com → **Agregar proyecto**.
 2. **Authentication** → Comenzar → Método de acceso → habilita **Google**. En Configuración → **Dominios autorizados** agrega `brand-trujillo.github.io`.

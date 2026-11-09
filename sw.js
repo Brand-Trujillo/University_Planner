@@ -1,6 +1,7 @@
-const CACHE = 'university-planner-v32';
+const CACHE = 'university-planner-v34';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './ktal.jpg', './megabyte.jpg', './tailwind.js',
-  './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js', './vendor/firebase-firestore-compat.js', './vendor/firebase-messaging-compat.js'];
+  './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js', './vendor/firebase-firestore-compat.js', './vendor/firebase-messaging-compat.js',
+  './vendor/pdf.min.mjs', './vendor/pdf.worker.min.mjs'];
 // Avisos push (FCM) con la app cerrada: el servidor envía solo datos y aquí se muestran
 self.addEventListener('push', e => {
   let p = {}; try { p = e.data.json(); } catch { return; }

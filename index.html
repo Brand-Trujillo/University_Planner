@@ -13,7 +13,10 @@
 <script>
 tailwind.config = { darkMode: 'class', theme: { extend: {
   fontFamily: { sans: ['Inter','system-ui','sans-serif'], title: ['Zen Dots','Inter','sans-serif'] },
-  colors: { slate850: '#1E293B', ink: '#0B1220' } } } };
+  colors: { slate850: '#1E293B', ink: '#0B1220',
+    emerald: Object.fromEntries([100,300,400,500,600,700].map(n => [n, `rgb(var(--accent-${n}) / <alpha-value>)`])),
+    teal: Object.fromEntries([400,600,700,800].map(n => [n, `rgb(var(--accent-secondary-${n}) / <alpha-value>)`]))
+  } } } };
 </script>
 <style>
   .lp { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -22,7 +25,7 @@ tailwind.config = { darkMode: 'class', theme: { extend: {
   @keyframes fi { from { opacity:0; transform: translateY(6px);} to { opacity:1; transform:none; } }
   .safe-b { padding-bottom: env(safe-area-inset-bottom); }
   ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-thumb { background:#33415588; border-radius: 9px; }
-  .dropzone.over { border-color:#10B981; background:#10B98122; }
+  .dropzone.over { border-color:rgb(var(--accent-500)); background:rgb(var(--accent-500) / .13); }
 </style>
 </head>
 <body class="bg-slate-100 text-slate-800 dark:bg-ink dark:text-slate-100 font-sans min-h-screen transition-colors">
@@ -111,7 +114,7 @@ let state = (() => {
   catch { return { tasks: [], classes: [], notifs: [], theme: 'dark', seenNotifs: 0, name: '' }; }
 })();
 const cloud = { ready: false, applying: false, lastJson: '', timer: null, ref: null, unsub: null, chats: {} };
-const cloudPayload = () => JSON.stringify({ tasks: state.tasks, classes: state.classes, name: state.name, theme: state.theme, groupCode: state.groupCode || '', codes: state.codes || [] });
+const cloudPayload = () => JSON.stringify({ tasks: state.tasks, classes: state.classes, name: state.name, theme: state.theme, accent: state.accent || 'emerald', groupCode: state.groupCode || '', codes: state.codes || [] });
 const save = () => {
   if (cloud.ready && !cloud.applying && cloudPayload() !== cloud.lastJson) state.cloudAt = Date.now();
   localStorage.setItem(KEY, JSON.stringify(state));
@@ -132,9 +135,35 @@ function toast(msg) {
   $('#toasts').appendChild(t);
   setTimeout(() => { t.style.opacity = 0; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 4500);
 }
-function applyTheme() { document.documentElement.classList.toggle('dark', state.theme === 'dark'); }
-function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); $('#modal').classList.add('flex'); }
-function closeModal() { $('#modal').classList.add('hidden'); $('#modal').classList.remove('flex'); }
+const PALETTES = {
+  emerald: { name: 'Esmeralda', primary: ['d1fae5','6ee7b7','34d399','10b981','059669','047857'], secondary: ['2dd4bf','0d9488','0f766e','115e59'] },
+  rose: { name: 'Rosa', primary: ['fce7f3','f9a8d4','f472b6','db2777','be185d','9d174d'], secondary: ['f472b6','db2777','be185d','9d174d'] },
+  violet: { name: 'Violeta', primary: ['ede9fe','c4b5fd','a78bfa','7c3aed','6d28d9','5b21b6'], secondary: ['c084fc','9333ea','7e22ce','6b21a8'] },
+  blue: { name: 'Azul', primary: ['dbeafe','93c5fd','60a5fa','2563eb','1d4ed8','1e40af'], secondary: ['38bdf8','0284c7','0369a1','075985'] },
+  coral: { name: 'Coral', primary: ['ffe4e6','fda4af','fb7185','e11d48','be123c','9f1239'], secondary: ['fb923c','ea580c','c2410c','9a3412'] },
+  indigo: { name: 'Índigo', primary: ['e0e7ff','a5b4fc','818cf8','4f46e5','4338ca','3730a3'], secondary: ['a78bfa','7c3aed','6d28d9','5b21b6'] },
+  fuchsia: { name: 'Fucsia', primary: ['fae8ff','f0abfc','e879f9','a21caf','86198f','701a75'], secondary: ['f472b6','be185d','9d174d','831843'] },
+  lavender: { name: 'Lavanda', primary: ['f3e8ff','d8b4fe','c084fc','9333ea','7e22ce','6b21a8'], secondary: ['a5b4fc','4f46e5','4338ca','3730a3'] },
+  turquoise: { name: 'Turquesa', primary: ['ccfbf1','5eead4','2dd4bf','0f766e','0f766e','115e59'], secondary: ['67e8f9','0e7490','155e75','164e63'] },
+  sky: { name: 'Azul cielo', primary: ['e0f2fe','7dd3fc','38bdf8','0369a1','0369a1','075985'], secondary: ['67e8f9','0e7490','155e75','164e63'] },
+  orange: { name: 'Naranja', primary: ['ffedd5','fdba74','fb923c','c2410c','c2410c','9a3412'], secondary: ['fbbf24','b45309','92400e','78350f'] },
+  gold: { name: 'Dorado', primary: ['fef3c7','fcd34d','fbbf24','a16207','a16207','854d0e'], secondary: ['fdba74','c2410c','9a3412','7c2d12'] },
+  red: { name: 'Rojo', primary: ['fee2e2','fca5a5','f87171','b91c1c','b91c1c','991b1b'], secondary: ['fb7185','be123c','9f1239','881337'] },
+  slate: { name: 'Grafito', primary: ['f1f5f9','cbd5e1','94a3b8','475569','475569','334155'], secondary: ['94a3b8','475569','334155','1e293b'] }
+};
+function applyTheme() {
+  const root = document.documentElement;
+  root.classList.toggle('dark', state.theme === 'dark');
+  const palette = PALETTES[state.accent] || PALETTES.emerald;
+  const rgb = hex => hex.match(/../g).map(v => parseInt(v, 16)).join(' ');
+  [100,300,400,500,600,700].forEach((n, i) => root.style.setProperty(`--accent-${n}`, rgb(palette.primary[i])));
+  [400,600,700,800].forEach((n, i) => root.style.setProperty(`--accent-secondary-${n}`, rgb(palette.secondary[i])));
+  $('meta[name="theme-color"]').content = '#' + palette.secondary[2];
+}
+let modalCleanup = null;
+function clearModalResources() { if (modalCleanup) { const cleanup = modalCleanup; modalCleanup = null; cleanup(); } }
+function openModal(html) { clearModalResources(); $('#modalBox').innerHTML = html; $('#modal').classList.remove('hidden'); $('#modal').classList.add('flex'); }
+function closeModal() { clearModalResources(); $('#modal').classList.add('hidden'); $('#modal').classList.remove('flex'); }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 function askYes(msg, fn) {
   openModal(`<h3 class="font-bold text-lg mb-2">${esc(msg)}</h3>
@@ -169,6 +198,7 @@ const P = {
   book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
   bell: '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  id: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="2"/><path d="M5.5 16c0-1.6 1-2.5 2.5-2.5s2.5.9 2.5 2.5M13 10h5M13 14h5"/>',
 };
 const IC = (k, cls = 'w-5 h-5') => `<svg viewBox="0 0 24 24" class="${cls} inline-block shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${P[k]}</svg>`;
 const NAV = [
@@ -858,6 +888,7 @@ const MORE = [
   ['focus', 'focus', 'Modo enfoque', 'Pomodoro 25/5 y 50/10'],
   ['chat', 'chat', 'Chat de estudio', 'Mensajes con tus códigos de chat'],
   ['share', 'share', 'Compartir y Google Calendar', 'Exporta, importa y sincroniza tu cronograma'],
+  ['studentCard', 'id', 'Carné estudiantil', 'Guarda y muestra tu carné sin salir de la app'],
   ['ktal', 'down', '¿Quieres controlar tu dinero también?', 'Conoce Ktal, app aliada de Megabyte'],
     ['megabyte', 'share', '¿Necesitas accesorios para tu computador?', 'Visita la tienda de Megabyte'],
   ];
@@ -886,9 +917,140 @@ function viewMore() {
   return `<button id="back" class="${btnG} mb-3">‹ Más</button>` + ({ ai: viewAI, focus: viewFocus, chat: viewChat, share: viewShare }[sub])();
 }
 function bindMore() {
-  if (!sub) { document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { if (b.dataset.sub === 'ktal') return ktalPromo(); if (b.dataset.sub === 'megabyte') return megabytePromo(); sub = b.dataset.sub; render(); window.scrollTo(0, 0); }); return; }
+  if (!sub) { document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { if (b.dataset.sub === 'ktal') return ktalPromo(); if (b.dataset.sub === 'megabyte') return megabytePromo(); if (b.dataset.sub === 'studentCard') return studentCard(); sub = b.dataset.sub; render(); window.scrollTo(0, 0); }); return; }
   $('#back').onclick = () => { sub = null; render(); };
   ({ ai: bindAI, focus: bindFocus, chat: bindChat, share: bindShare }[sub])();
+}
+
+/* ================== Carné estudiantil, solo en este dispositivo ================== */
+const CARD_LIMIT = 10 * 1024 * 1024;
+function cardDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('university-planner-cards', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('cards');
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('El almacenamiento está bloqueado por otra pestaña.'));
+  });
+}
+async function cardStorage(action, value) {
+  const db = await cardDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('cards', action === 'get' ? 'readonly' : 'readwrite');
+      const store = tx.objectStore('cards');
+      const request = action === 'get' ? store.get(KEY) : action === 'put' ? store.put(value, KEY) : store.delete(KEY);
+      tx.oncomplete = () => resolve(request.result);
+      tx.onerror = () => reject(tx.error || request.error);
+      tx.onabort = () => reject(tx.error || new Error('Operación cancelada.'));
+    });
+  } finally { db.close(); }
+}
+async function loadPdf(blob) {
+  const pdfjs = await import('./vendor/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
+  return pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+}
+async function validateCard(file) {
+  if (!file.size || file.size > CARD_LIMIT) throw new Error('El archivo debe tener contenido y pesar máximo 10 MB.');
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const pdf = bytes.length >= 5 && String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-';
+  const image = (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+    (bytes[0] === 0x89 && String.fromCharCode(...bytes.slice(1, 4)) === 'PNG') ||
+    String.fromCharCode(...bytes.slice(0, 3)) === 'GIF' ||
+    (String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP');
+  if (pdf) {
+    const doc = await loadPdf(file);
+    await doc.destroy();
+    return { blob: file, type: 'pdf' };
+  }
+  if (image) {
+    const url = URL.createObjectURL(file);
+    try {
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = resolve; img.onerror = () => reject(new Error('La imagen no se puede abrir.')); img.src = url;
+      });
+    } finally { URL.revokeObjectURL(url); }
+    return { blob: file, type: 'image' };
+  }
+  throw new Error('Selecciona un PDF o una imagen JPG, PNG, GIF o WebP.');
+}
+async function studentCard() {
+  let saved;
+  try { saved = await cardStorage('get'); }
+  catch (error) { console.error('Error al leer el carné:', error); toast('No se pudo acceder al carné guardado en este dispositivo.'); return; }
+  openModal(`<div class="flex items-center justify-between gap-3 mb-3"><h3 class="font-bold text-lg">Carné estudiantil</h3><button id="cardClose" class="text-xl" aria-label="Cerrar">✕</button></div>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Se guarda solo en este dispositivo y no se sincroniza. Si borras los datos de la app, se eliminará.</p>
+    <div id="cardPreview" class="space-y-2">${saved ? '<p class="text-sm">Cargando carné…</p>' : '<p class="text-sm">Agrega una imagen o PDF de tu carné para mostrarlo aquí.</p>'}</div>
+    <input id="cardFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,application/pdf,image/jpeg,image/png,image/gif,image/webp" class="hidden">
+    <button id="cardChoose" class="${btnP} w-full mt-3">${saved ? 'Cambiar carné' : 'Agregar carné'}</button>
+    ${saved ? `<button id="cardDelete" class="${btnG} w-full mt-2">Eliminar carné</button>` : ''}
+    <p id="cardError" role="alert" class="text-sm text-rose-500 mt-2"></p>`);
+  const preview = $('#cardPreview');
+  let active = true, objectUrl = null, pdf = null;
+  modalCleanup = () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); if (pdf) pdf.destroy().catch(error => console.error('Error al cerrar PDF:', error)); };
+  $('#cardClose').onclick = closeModal;
+  $('#cardChoose').onclick = () => $('#cardFile').click();
+  $('#cardFile').onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const button = $('#cardChoose'); button.disabled = true;
+    $('#cardError').textContent = 'Guardando…';
+    try {
+      const card = await validateCard(file);
+      await cardStorage('put', card);
+      if (active) { toast('Carné guardado en este dispositivo.'); studentCard(); }
+    } catch (error) {
+      console.error('Error al guardar carné:', error);
+      if (active) { $('#cardError').textContent = error.name === 'PasswordException' ? 'El PDF está protegido con contraseña. Usa otro archivo.' : (error.message || 'No se pudo guardar el carné. Revisa el archivo y el espacio disponible.'); button.disabled = false; e.target.value = ''; }
+    }
+  };
+  if (!saved) return;
+  $('#cardDelete').onclick = () => askYes('¿Quieres eliminar el carné de este dispositivo?', async () => {
+    try { await cardStorage('delete'); toast('Carné eliminado.'); studentCard(); }
+    catch (error) { console.error('Error al eliminar carné:', error); toast('No se pudo eliminar el carné.'); }
+  });
+  try {
+    if (saved.type === 'image') {
+      objectUrl = URL.createObjectURL(saved.blob);
+      preview.innerHTML = `<img alt="Carné estudiantil" class="w-full rounded-xl object-contain">`;
+      preview.querySelector('img').src = objectUrl;
+    } else if (saved.type === 'pdf') {
+      const doc = await loadPdf(saved.blob);
+      if (!active) { await doc.destroy(); return; }
+      pdf = doc;
+      preview.innerHTML = `<div class="overflow-auto rounded-xl bg-slate-200 dark:bg-slate-900"><canvas class="w-full h-auto block" aria-label="Página del carné en PDF"></canvas></div>
+        <div class="flex items-center justify-center gap-3"><button id="cardPrev" class="${btnG}">Anterior</button><span id="cardPage" class="text-sm"></span><button id="cardNext" class="${btnG}">Siguiente</button></div>`;
+      let pageNumber = 1, rendering = false;
+      const showPage = async () => {
+        rendering = true;
+        const prev = $('#cardPrev'), next = $('#cardNext');
+        prev.disabled = next.disabled = true;
+        try {
+          const page = await doc.getPage(pageNumber);
+          if (!active) return;
+          const viewport = page.getViewport({ scale: 1 });
+          const scale = Math.min(2, 1200 / Math.max(viewport.width, viewport.height));
+          const scaled = page.getViewport({ scale });
+          const canvas = preview.querySelector('canvas'); canvas.width = scaled.width; canvas.height = scaled.height;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport: scaled }).promise;
+          if (active) $('#cardPage').textContent = `Página ${pageNumber} de ${doc.numPages}`;
+        } catch (error) {
+          console.error('Error al mostrar página del carné:', error);
+          if (active) $('#cardError').textContent = 'No se pudo mostrar esta página del PDF.';
+        } finally {
+          rendering = false;
+          if (active) { prev.disabled = pageNumber === 1; next.disabled = pageNumber === doc.numPages; }
+        }
+      };
+      $('#cardPrev').onclick = () => { if (!rendering && pageNumber > 1) { pageNumber--; showPage(); } };
+      $('#cardNext').onclick = () => { if (!rendering && pageNumber < doc.numPages) { pageNumber++; showPage(); } };
+      await showPage();
+    } else throw new Error('Formato de carné desconocido.');
+  } catch (error) {
+    console.error('Error al mostrar carné:', error);
+    if (active) { preview.textContent = 'No se pudo mostrar el carné. Intenta cambiar el archivo.'; }
+  }
 }
 
 /* ================== Utilidades de portapapeles / descarga ================== */
@@ -1236,10 +1398,11 @@ function applyRemote(d, merge) {
   if (merge) {
     state.tasks = mergeById(r.tasks, state.tasks); state.classes = mergeById(r.classes, state.classes);
     state.name = state.name || r.name || ''; state.groupCode = state.groupCode || r.groupCode || '';
+    state.accent = state.accent || r.accent || 'emerald';
     state.codes = [...new Set([...(state.codes || []), ...(Array.isArray(r.codes) ? r.codes : []).map(normCode).filter(Boolean)])];
   } else {
     state.tasks = Array.isArray(r.tasks) ? r.tasks : []; state.classes = Array.isArray(r.classes) ? r.classes : [];
-    state.name = r.name || state.name; state.theme = r.theme || state.theme; state.groupCode = normCode(r.groupCode);
+    state.name = r.name || state.name; state.theme = r.theme || state.theme; state.accent = r.accent || state.accent || 'emerald'; state.groupCode = normCode(r.groupCode);
     state.codes = [...new Set([...(Array.isArray(r.codes) ? r.codes : []).map(normCode).filter(Boolean), ...(state.groupCode ? [state.groupCode] : [])])];
     state.cloudAt = d.updatedAt;
   }
@@ -1368,9 +1531,28 @@ function accountModal() {
     <div class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden grid place-items-center text-2xl text-white font-bold">${avatarHtml(true)}</div>
     <div><p class="font-bold">${esc(state.name || SESSION.name || 'Estudiante')}</p><p class="text-sm text-slate-500 dark:text-slate-400 break-all">${esc(SESSION.email)}</p>
     <p class="text-[11px] mt-1 ${SESSION.provider === 'google' ? 'text-emerald-500' : 'text-slate-400'}">${SESSION.provider === 'google' ? 'Cuenta de Google · ' + (cloud.ready ? 'datos sincronizados' : cloud.expired ? 'sesión en la nube vencida, vuelve a entrar' : 'conectando…') : 'Modo local (sin verificar)'}</p></div>
+    <button id="accountSettings" class="${btnG} w-full">Configuración ›</button>
     <div class="flex gap-2 pt-2"><button onclick="closeModal()" class="${btnG} flex-1">Cerrar</button><button id="logout" class="${btnP} flex-1">Cerrar sesión</button></div>
     <p class="text-[11px] text-slate-500">${SESSION.provider === 'google' ? 'Tus pendientes y horario se guardan en tu cuenta y los ves en cualquier dispositivo.' : 'Tus datos quedan guardados en este dispositivo para esta cuenta.'}</p></div>`);
+  $('#accountSettings').onclick = settingsModal;
   $('#logout').onclick = async () => { cloud.unsub?.(); Object.values(cloud.chats).forEach(c => c.unsub?.()); try { await fb?.auth.signOut(); } catch {} localStorage.removeItem('up.session'); location.reload(); };
+}
+function settingsModal() {
+  openModal(`<div class="flex items-center justify-between mb-4"><h3 class="font-bold text-lg">Configuración</h3><button onclick="closeModal()" aria-label="Cerrar" class="text-xl">✕</button></div>
+    <button id="settingsColors" class="${btnG} w-full text-left flex justify-between"><span>Color de la app</span><span>${esc((PALETTES[state.accent] || PALETTES.emerald).name)} ›</span></button>
+    <button id="settingsBack" class="${btnG} w-full mt-3">‹ Volver a mi cuenta</button>`);
+  $('#settingsColors').onclick = colorsModal;
+  $('#settingsBack').onclick = accountModal;
+}
+function colorsModal() {
+  openModal(`<div class="flex items-center justify-between mb-3"><h3 class="font-bold text-lg">Color de la app</h3><button onclick="closeModal()" aria-label="Cerrar" class="text-xl">✕</button></div>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">Elige el color de los botones y acentos. Puedes usarlo en modo claro u oscuro.</p>
+    <div class="grid grid-cols-2 gap-2">${Object.entries(PALETTES).map(([key, palette]) => `<button data-accent="${key}" aria-pressed="${(state.accent || 'emerald') === key}" class="${btnG} flex items-center gap-2 text-left"><span class="w-6 h-6 rounded-full shrink-0" style="background:#${palette.primary[3]}"></span><span class="flex-1">${palette.name}</span><span>${(state.accent || 'emerald') === key ? '✓' : ''}</span></button>`).join('')}</div>
+    <button id="colorsBack" class="${btnG} w-full mt-3">‹ Configuración</button>`);
+  document.querySelectorAll('[data-accent]').forEach(button => button.onclick = () => {
+    state.accent = button.dataset.accent; applyTheme(); save(); colorsModal();
+  });
+  $('#colorsBack').onclick = settingsModal;
 }
 function avatarHtml(big) {
   return SESSION.picture ? `<img src="${esc(SESSION.picture)}" referrerpolicy="no-referrer" alt="" class="w-full h-full object-cover">` : esc((state.name || SESSION.email)[0].toUpperCase());
